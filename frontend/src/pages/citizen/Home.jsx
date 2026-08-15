@@ -6,18 +6,18 @@ import Card from '../../components/ui/Card';
 
 const STATS = [
   { label: 'Issues Reported', value: '2,847', color: 'text-primary-600' },
-  { label: 'Resolved',        value: '2,134', color: 'text-success'     },
-  { label: 'In Progress',     value: '421',   color: 'text-warning'     },
-  { label: 'Cities Active',   value: '18',    color: 'text-secondary-600'},
+  { label: 'Resolved', value: '2,134', color: 'text-success' },
+  { label: 'In Progress', value: '421', color: 'text-warning' },
+  { label: 'Cities Active', value: '18', color: 'text-secondary-600' },
 ];
 
 const RECENT_CATEGORIES = [
-  { name: 'Roads & Potholes',  count: 342, emoji: '🛣️'  },
-  { name: 'Water Supply',      count: 218, emoji: '💧'  },
-  { name: 'Streetlights',      count: 195, emoji: '💡'  },
-  { name: 'Sanitation',        count: 184, emoji: '🗑️'  },
-  { name: 'Parks & Spaces',    count: 127, emoji: '🌳'  },
-  { name: 'Electricity',       count: 103, emoji: '⚡'  },
+  { name: 'Roads & Potholes', count: 342, emoji: '🛣️' },
+  { name: 'Water Supply', count: 218, emoji: '💧' },
+  { name: 'Streetlights', count: 195, emoji: '💡' },
+  { name: 'Sanitation', count: 184, emoji: '🗑️' },
+  { name: 'Parks & Spaces', count: 127, emoji: '🌳' },
+  { name: 'Electricity', count: 103, emoji: '⚡' },
 ];
 
 export default function Home() {
@@ -25,10 +25,7 @@ export default function Home() {
     <div className="animate-fade-in">
       {/* Hero */}
       <section className="text-center py-10 px-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-xs font-semibold mb-4">
-          <Shield size={12} />
-          Smart India Hackathon — SIH 2024
-        </div>
+
         <h1 className="text-3xl font-bold text-secondary-900 mb-3 leading-tight">
           Your city, your voice.
           <br />
@@ -68,8 +65,8 @@ export default function Home() {
           {[
             { step: '1', icon: PlusCircle, title: 'Report an issue', desc: 'Describe the problem, add a photo, and pin your location.' },
             { step: '2', icon: TrendingUp, title: 'Community upvotes', desc: 'Neighbours upvote issues to raise priority with the municipality.' },
-            { step: '3', icon: MapPin,     title: 'Assigned to dept.',  desc: 'The system routes your complaint to the right department.' },
-            { step: '4', icon: CheckCircle2,title: 'Resolved & verified', desc: 'Track real-time status and confirm resolution yourself.' },
+            { step: '3', icon: MapPin, title: 'Assigned to dept.', desc: 'The system routes your complaint to the right department.' },
+            { step: '4', icon: CheckCircle2, title: 'Resolved & verified', desc: 'Track real-time status and confirm resolution yourself.' },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-4 p-4 bg-surface rounded-lg border border-secondary-200">
               <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
