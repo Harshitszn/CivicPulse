@@ -12,4 +12,25 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+
+          if (id.includes('recharts') || id.includes('d3-')) {
+            return 'charts';
+          }
+
+          if (id.includes('react-router-dom')) {
+            return 'router';
+          }
+
+          if (id.includes('/node_modules/react') || id.includes('/node_modules/react-dom')) {
+            return 'react-vendor';
+          }
+        },
+      },
+    },
+  },
 });
