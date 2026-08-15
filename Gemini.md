@@ -1,95 +1,139 @@
-# CivicPulse Project Instructions
+# CivicPulse — Project Instructions
 
-CivicPulse is a civic grievance and municipal services prototype.
+CivicPulse is a civic grievance and municipal services platform.
 
-IMPORTANT DESIGN ARCHITECTURE:
+IMPORTANT:
+This project has ONE global visual identity and TWO interface structures.
 
-This project intentionally uses TWO design systems.
+==================================================
+GLOBAL DESIGN SYSTEM
+==================================================
 
-## CITIZEN PORTAL
+DESIGN.md is the global visual source of truth for the entire application.
+
+Use DESIGN.md for:
+
+- colors
+- color palette
+- primary/secondary/accent colors
+- theme
+- typography
+- fonts
+- font weights
+- font sizes
+- line heights
+- spacing
+- border colors
+- border radii
+- shadows
+- component visual styling
+- buttons
+- inputs
+- cards
+- badges
+- general visual tone
+
+Do NOT create a second independent visual identity.
+
+==================================================
+CITIZEN STRUCTURE
+==================================================
+
+Use the structure and interaction philosophy of FeedLoop from DESIGN.md.
+
+Citizen pages:
+
+Home
+Local Issues Feed
+Report Issue
+Complaint Details
+Comments
+My Complaints
+Profile
+Pincode Selection
+
+The citizen experience should feel like:
+
+Instagram + Reddit + civic services.
 
 Use:
-DESIGN.md
+- content-first posts
+- scrollable feed
+- image-centric complaint cards
+- upvote/downvote
+- comments
+- sorting
+- filtering
+- mobile-friendly interaction
 
-DESIGN.md is the primary visual system for all citizen-facing experiences.
+Do NOT make citizen pages look like a dashboard.
 
-Citizen pages include:
-- Home
-- Local Issues Feed
-- Report an Issue
-- Complaint Details
-- Comments
-- Voting
-- My Complaints
-- Profile
-- Pincode selection
+==================================================
+MUNICIPAL STRUCTURE
+==================================================
 
-The citizen interface should feel like a modern civic social platform inspired by:
-- Instagram
-- Reddit
-- community feeds
+Use MUNICIPAL_DESIGN.md only for the MUNICIPAL STRUCTURE and INFORMATION ARCHITECTURE.
 
-Use FeedLoop's visual language:
-- content-first
-- scroll-optimized
-- compact post cards
-- strong media/image presentation
-- easy scanning
-- clean interaction controls
-- mobile-friendly layouts
+Municipal pages:
 
-Do NOT make the citizen side look like a dashboard.
+Dashboard
+Complaints
+Complaint Details
+Map
+Departments
+Analytics
+Citizens
+Settings
 
-## MUNICIPAL PORTAL
-
-Use:
-MUNICIPAL_DESIGN.md
-
-MUNICIPAL_DESIGN.md is the design system for municipal officers.
-
-Municipal pages include:
-- Login
-- Dashboard
-- Complaints
-- Complaint details
-- Map
-- Departments
-- Analytics
-- Citizens
-- Settings
-
-Use the Command Center design strongly here:
-- dark frosted sidebar
-- dark header
-- warm light workspace
-- analytical cards
+Use its:
+- sidebar structure
+- header structure
+- dashboard layout
+- KPI arrangement
 - tables
-- charts
 - filters
-- status badges
-- orange action language
+- analytics composition
+- operational information density
+- municipal workflow structure
 
-Do NOT make the municipal side look like a social media feed.
+However, ALL visual styling must still come from DESIGN.md.
 
-## SHARED SYSTEM
+Therefore:
+
+MUNICIPAL_DESIGN.md provides:
+STRUCTURE
+
+DESIGN.md provides:
+STYLE
+
+Do NOT copy the Command Center color palette, fonts, independent theme, or unrelated visual identity if they conflict with DESIGN.md.
+
+The municipal interface must visually belong to the same CivicPulse product as the citizen interface.
+
+==================================================
+SHARED DATA
+==================================================
 
 Both interfaces use the same:
-- backend
-- database
-- authentication/session
-- complaints
+
 - users
+- complaints
 - comments
 - votes
-- AI classification
 - pincode data
-- status system
+- AI classification
+- departments
+- status
+- verification data
 
-Only the presentation/layout differs.
+Do not create separate duplicate business logic for citizen and municipal interfaces.
 
-## ROUTING
+==================================================
+ROUTING
+==================================================
 
-Citizen:
+Citizen routes:
+
 /
  /feed
  /report
@@ -97,7 +141,8 @@ Citizen:
  /my-complaints
  /profile
 
-Municipal:
+Municipal routes:
+
 /municipal/login
 /municipal/dashboard
 /municipal/complaints
@@ -108,8 +153,25 @@ Municipal:
 /municipal/citizens
 /municipal/settings
 
-Never accidentally use the municipal Command Center shell on citizen pages.
+Create:
 
-Never accidentally use the citizen FeedLoop layout on municipal pages.
+CitizenLayout
+MunicipalLayout
 
-Preserve both design systems throughout development.
+CitizenLayout uses FeedLoop-style structure.
+
+MunicipalLayout uses Command Center-style structure.
+
+Both use the same DESIGN.md visual identity.
+
+==================================================
+IMPORTANT DEVELOPMENT RULES
+==================================================
+
+- Never replace working code unnecessarily.
+- Never rebuild the project from scratch after the initial setup.
+- Preserve existing functionality when adding features.
+- Reuse components.
+- Keep business logic separate from visual layout.
+- Keep citizen and municipal layouts separate.
+- Keep the global visual identity unified.
