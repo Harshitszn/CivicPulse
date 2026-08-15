@@ -1,22 +1,28 @@
 import React from 'react';
-import { Bell, Search, LogOut, Menu } from 'lucide-react';
+import { Bell, Search, LogOut, Menu, ShieldCheck, MapPin, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePincode } from '../../context/PincodeContext';
 
 function MunicipalHeader({ sidebarCollapsed, onMenuToggle, pageTitle = 'Dashboard' }) {
   const navigate = useNavigate();
+  const { currentUser, loginAsUser, logoutUser, DEMO_USERS } = usePincode();
+
+  const handleLogout = () => {
+    logoutUser();
+    navigate('/municipal/login');
+  };
 
   return (
     <header
       className={[
-        'fixed top-0 right-0 z-20 flex items-center gap-4 px-6 h-16 shell-panel border-b',
+        'fixed top-0 right-0 z-20 flex items-center gap-4 px-6 h-16 bg-white border-b border-secondary-200 shadow-xs',
         'transition-all duration-slow',
         sidebarCollapsed ? 'left-16' : 'left-64',
       ].join(' ')}
-      style={{ borderColor: 'rgba(255,255,255,0.08)' }}
     >
       {/* Mobile menu toggle */}
       <button
-        className="lg:hidden p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+        className="lg:hidden p-2 rounded-lg text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100 transition-colors"
         onClick={onMenuToggle}
         id="municipal-menu-btn"
         aria-label="Toggle menu"
@@ -24,55 +30,72 @@ function MunicipalHeader({ sidebarCollapsed, onMenuToggle, pageTitle = 'Dashboar
         <Menu size={20} />
       </button>
 
-      {/* Page title */}
-      <h1 className="text-sm font-semibold text-white/90 hidden sm:block">{pageTitle}</h1>
+      {/* Page title + Zone badge */}
+      <div className="hidden sm:flex items-center gap-3">
+        <h1 className="text-base font-extrabold text-secondary-900 tracking-tight">{pageTitle}</h1>
+        <span className="text-[11px] font-bold text-primary-700 bg-primary-50 px-2.5 py-0.5 rounded-full border border-primary-200 flex items-center gap-1">
+          <MapPin size={11} className="text-primary-600" />
+          Central Municipal Zone
+        </span>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Search */}
-      <div className="relative hidden md:block">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-        <input
-          type="search"
-          placeholder="Search complaints..."
-          id="municipal-search"
-          className="w-48 pl-8 pr-3 py-1.5 text-sm rounded-md text-white placeholder-white/30
-                     focus:outline-none focus:ring-1 focus:ring-primary-500 transition-all duration-fast"
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)' }}
-        />
+      {/* Demo Persona Switcher Dropdown */}
+      <div className="hidden sm:flex items-center gap-1.5 bg-primary-50 px-2.5 py-1 rounded-lg border border-primary-200 text-xs">
+        <span className="text-[10px] font-extrabold text-primary-800 uppercase">Demo Persona:</span>
+        <select
+          value={currentUser?.email || 'officer@demo.com'}
+          onChange={(e) => {
+            const u = loginAsUser(e.target.value);
+            if (u.role === 'citizen') window.location.href = '/feed';
+          }}
+          className="bg-white border border-primary-300 text-secondary-900 text-xs font-extrabold rounded px-2 py-0.5 focus:outline-none cursor-pointer shadow-xs"
+        >
+          {(DEMO_USERS || []).map((u) => (
+            <option key={u.email} value={u.email}>
+              {u.name} ({u.role === 'officer' ? 'Officer' : `PIN ${u.pincode}`})
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Notifications */}
+      {/* Emergency Alert / Notification Bell */}
       <button
         id="municipal-notifications-btn"
-        className="relative p-2 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+        className="relative p-2 rounded-xl text-secondary-600 hover:text-primary-600 hover:bg-secondary-100 transition-colors min-h-[40px] flex items-center justify-center"
         aria-label="Notifications"
+        title="3 Urgent Alerts"
       >
         <Bell size={18} />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full" />
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full ring-2 ring-white" />
       </button>
 
-      {/* User badge */}
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-xs font-bold">MO</span>
+      {/* Officer User Profile Badge */}
+      <div className="flex items-center gap-2.5 pl-2 border-l border-secondary-200">
+        <div className="w-9 h-9 rounded-xl bg-primary-600 text-white font-extrabold text-xs flex items-center justify-center shadow-xs flex-shrink-0">
+          {currentUser?.role === 'officer' ? 'MO' : 'CZ'}
         </div>
         <div className="hidden md:block">
-          <p className="text-xs font-medium text-white/90 leading-tight">Municipal Officer</p>
-          <p className="text-[10px] text-white/40 leading-tight">Admin</p>
+          <p className="text-xs font-bold text-secondary-900 leading-tight">
+            {currentUser?.name || 'Officer Rajesh V.'}
+          </p>
+          <p className="text-[10px] font-semibold text-secondary-400 leading-tight">
+            {currentUser?.role === 'officer' ? 'Municipal Officer' : `Resident (${currentUser?.pincode})`}
+          </p>
         </div>
       </div>
 
-      {/* Logout */}
+      {/* Portal Logout */}
       <button
         id="municipal-logout-btn"
-        onClick={() => navigate('/municipal/login')}
-        className="p-2 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+        onClick={handleLogout}
+        className="p-2 rounded-xl text-secondary-400 hover:text-error hover:bg-red-50 transition-colors"
         aria-label="Logout"
-        title="Logout"
+        title="Logout of Municipal Command Center"
       >
-        <LogOut size={16} />
+        <LogOut size={18} />
       </button>
     </header>
   );

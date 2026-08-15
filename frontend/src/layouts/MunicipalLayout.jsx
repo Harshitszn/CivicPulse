@@ -28,7 +28,7 @@ function MunicipalLayout() {
   const pageTitle =
     Object.entries(PAGE_TITLES).find(([path]) => location.pathname.startsWith(path))?.[1] ?? 'CivicPulse';
 
-  const sidebarWidth = collapsed ? 'left-16' : 'left-64';
+  const sidebarMargin = collapsed ? 'ml-16' : 'ml-64';
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -36,7 +36,7 @@ function MunicipalLayout() {
       <MunicipalSidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
 
       {/* Right panel: header + content */}
-      <div className={`flex-1 flex flex-col transition-all duration-slow ${sidebarWidth}`}>
+      <div className={`flex-1 flex flex-col transition-all duration-slow ${sidebarMargin}`}>
         {/* Header */}
         <MunicipalHeader sidebarCollapsed={collapsed} pageTitle={pageTitle} />
 

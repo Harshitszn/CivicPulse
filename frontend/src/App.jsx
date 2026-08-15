@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { PincodeProvider } from './context/PincodeContext';
 
 // Layouts
 import CitizenLayout from './layouts/CitizenLayout';
@@ -29,7 +30,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <Routes>
+        <PincodeProvider>
+          <Routes>
           {/* ── Citizen routes ──────────────────────────────────────────── */}
           <Route element={<CitizenLayout />}>
             <Route path="/"               element={<Home />}             />
@@ -66,7 +68,8 @@ export default function App() {
               </div>
             </div>
           } />
-        </Routes>
+          </Routes>
+        </PincodeProvider>
       </ToastProvider>
     </BrowserRouter>
   );
