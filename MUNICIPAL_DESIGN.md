@@ -48,7 +48,7 @@ typography:
     fontFamily: "'Inter', sans-serif"
     fontSize: "1.5rem"
     fontWeight: 700
-    lineHeight: "2rem"
+    lineHeight: "2.25rem"
   title-md:
     fontFamily: "'Inter', sans-serif"
     fontSize: "1.125rem"
