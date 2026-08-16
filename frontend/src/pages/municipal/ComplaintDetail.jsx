@@ -177,7 +177,7 @@ export default function MunicipalComplaintDetail() {
   };
 
   return (
-    <div className="animate-fade-in space-y-6 max-w-container mx-auto pb-12">
+    <div className="animate-fade-in space-y-6 w-full pb-12">
       {/* ── Header Navigation Bar ────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-secondary-200 rounded-xl p-5 shadow-card">
         <div className="flex items-center gap-3">

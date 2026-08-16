@@ -21,7 +21,7 @@ export default function Citizens() {
   );
 
   return (
-    <div className="animate-fade-in space-y-5">
+    <div className="animate-fade-in space-y-5 w-full">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-secondary-900">Citizens</h2>
@@ -30,7 +30,7 @@ export default function Citizens() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Registered', value: CITIZENS.length, icon: '👥', color: 'bg-primary-50 text-primary-600' },
           { label: 'Active Reporters',  value: CITIZENS.filter(c => c.total > 0).length, icon: '📋', color: 'bg-green-50 text-success' },

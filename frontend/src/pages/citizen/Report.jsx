@@ -298,7 +298,7 @@ export default function Report() {
   };
 
   return (
-    <div className="max-w-xl mx-auto pb-12 animate-fade-in">
+    <div className="w-full max-w-3xl mx-auto pb-12 animate-fade-in">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-xl font-extrabold text-secondary-900 tracking-tight flex items-center gap-2">

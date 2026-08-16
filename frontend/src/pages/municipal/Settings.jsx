@@ -64,23 +64,23 @@ export default function Settings() {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in w-full">
       <div className="mb-5">
         <h2 className="text-xl font-bold text-secondary-900">Settings</h2>
         <p className="text-sm text-secondary-400">Manage portal configuration</p>
       </div>
 
-      <div className="flex gap-5">
-        {/* Sidebar */}
-        <div className="w-44 flex-shrink-0">
-          <nav className="space-y-0.5">
+      <div className="flex flex-col sm:flex-row gap-5">
+        {/* Sidebar — horizontal scroll on mobile, vertical on sm+ */}
+        <div className="sm:w-44 flex-shrink-0">
+          <nav className="flex sm:flex-col gap-1 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0">
             {SECTIONS.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setActive(id)}
                 id={`settings-tab-${id}`}
                 className={[
-                  'w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left',
+                  'flex-shrink-0 sm:w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium transition-colors text-left whitespace-nowrap',
                   active === id ? 'bg-primary-50 text-primary-700' : 'text-secondary-500 hover:bg-secondary-100 hover:text-secondary-700',
                 ].join(' ')}
               >
@@ -92,7 +92,7 @@ export default function Settings() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 bg-surface border border-secondary-200 rounded-lg shadow-card p-6">
+        <div className="flex-1 min-w-0 bg-surface border border-secondary-200 rounded-lg shadow-card p-5 sm:p-6">
           {active === 'general' && (
             <div>
               <h3 className="text-sm font-semibold text-secondary-800 mb-4">General Settings</h3>
