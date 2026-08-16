@@ -109,7 +109,7 @@ const INITIAL_COMPLAINTS = [
     _id: '2',
     title: 'No water supply for 3 days in Hiranandani Gardens Sector 4',
     description: 'Main supply pipeline burst near the pump station. Over 400 households affected without drinking water.',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://www.worldfinance.com/wp-content/uploads/2017/10/Water.jpg',
     category: 'Water Supply',
     categorySlug: 'water',
     pincode: '400076',
@@ -169,7 +169,7 @@ const INITIAL_COMPLAINTS = [
     _id: '5',
     title: 'Main pipeline leak wasting treated drinking water on SV Road',
     description: 'High pressure stream spilling onto the road near Kandivali station for over 12 hours.',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRRYesEW5WuusrVR6YHGbIsSA_FhZlohRSSgOwwmjTLkj7sdQy2flnvRsw&s=10',
     category: 'Water Supply',
     categorySlug: 'water',
     pincode: '400067',
@@ -289,7 +289,7 @@ const INITIAL_COMPLAINTS = [
     _id: '11',
     title: 'Contaminated brown tap water supply in Chincholi Bunder society',
     description: 'Sewage line seepage suspected into municipal water trunk. Tap water running muddy and foul smelling.',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://media.istockphoto.com/id/823352846/photo/water-tap-with-running-dirty-muddy-water-in-a-sink.jpg?s=1024x1024&w=is&k=20&c=Y4HW3oy4EKBTeHaO32yzG2LeAw6pr7jtFXBGdds_92o=',
     category: 'Water Supply',
     categorySlug: 'water',
     pincode: '400064',
@@ -409,7 +409,7 @@ const INITIAL_COMPLAINTS = [
     _id: '17',
     title: 'Low water pressure in 4th Road Santacruz residential buildings',
     description: 'Booster pump valve fault leading to minimal pressure on upper floors of 5-storey buildings.',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR_m7s_Q7KWJrkvvpSnOMdylcSzLhyUUTHy56krAE1VpHjCK9ikBpqQ_zwe&s=10',
     category: 'Water Supply',
     categorySlug: 'water',
     pincode: '400054',
@@ -529,7 +529,7 @@ const INITIAL_COMPLAINTS = [
     _id: '23',
     title: 'Leaking air valve on Powai water main causing continuous street puddle',
     description: 'Faulty valve venting water constantly onto the asphalt road near Rambaug.',
-    imageUrl: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?auto=format&fit=crop&w=800&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1694804304298-c79443f5e2f4?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     category: 'Water Supply',
     categorySlug: 'water',
     pincode: '400076',
@@ -715,7 +715,7 @@ export function PincodeProvider({ children }) {
         const parsed = JSON.parse(storedUser);
         if (parsed.pincode) return parsed.pincode;
       }
-    } catch (e) {}
+    } catch (e) { }
     return localStorage.getItem('civicpulse_registered_pincode') || '400064';
   });
 
