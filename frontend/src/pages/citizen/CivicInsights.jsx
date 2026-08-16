@@ -719,6 +719,7 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
 
 function CivicRecordSection({ pincode, localityInfo }) {
   const [activeChartTab, setActiveChartTab] = useState('grid');
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const historyData = useMemo(() => generate5YearHistory(pincode), [pincode]);
   const [selectedYear, setSelectedYear] = useState('2026');
 
