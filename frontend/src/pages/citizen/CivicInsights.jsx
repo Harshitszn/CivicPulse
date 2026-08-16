@@ -1586,7 +1586,7 @@ function ServicesSection({ pincode, localityInfo, complaints }) {
 
 export default function CivicInsights() {
   const location = useLocation();
-  const { registeredPincode, complaints: allComplaints, getComplaintVerification } = usePincode();
+  const { registeredPincode, complaints: allComplaints, getComplaintVerification, getComplaintVotes } = usePincode();
 
   const [selectedPincode, setSelectedPincode] = useState(() => {
     const saved = localStorage.getItem('civic_insights_pincode');
