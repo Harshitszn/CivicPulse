@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   BarChart2,
   MapPin,
@@ -12,6 +13,7 @@ import {
   ThumbsUp,
   RefreshCw,
   Info,
+  Layers,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -1080,6 +1082,7 @@ function ServicesSection({ pincode, complaints }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function CivicInsights() {
+  const location = useLocation();
   const { registeredPincode, complaints: allComplaints, getComplaintVerification } = usePincode();
 
   const [selectedPincode, setSelectedPincode] = useState(() => {
@@ -1126,10 +1129,15 @@ export default function CivicInsights() {
     return (allComplaints || []).filter(c => c.pincode === selectedPincode);
   }, [allComplaints, selectedPincode]);
 
+  // Determine current active subroute
+  const isRecordRoute = location.pathname.startsWith('/insights/record');
+  const isServicesRoute = location.pathname.startsWith('/insights/services');
+  const isOverviewRoute = !isRecordRoute && !isServicesRoute;
+
   return (
     <div className="animate-fade-in pb-16">
       {/* ── Page Header & Locality Selector ─────────────────────────────────── */}
-      <section className="pt-2 pb-5 border-b border-secondary-200">
+      <section className="pt-2 pb-4 border-b border-secondary-200">
         <div className="flex items-center gap-2 mb-1.5">
           <div className="w-6 h-6 rounded-lg bg-primary-600 text-white flex items-center justify-center">
             <BarChart2 size={14} />
@@ -1200,9 +1208,60 @@ export default function CivicInsights() {
             </span>
           </div>
         </div>
+
+        {/* ── Secondary Navigation Bar (Overview · Civic Record · Services) ── */}
+        <nav aria-label="Civic Insights Sub-Navigation" className="mt-4">
+          <div className="flex items-center gap-1.5 p-1 bg-secondary-100/90 rounded-2xl border border-secondary-200 overflow-x-auto no-scrollbar">
+            <NavLink
+              to="/insights"
+              end
+              id="insights-nav-overview"
+              className={({ isActive }) =>
+                `flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-1 sm:flex-initial no-underline ${
+                  isActive
+                    ? 'bg-surface text-primary-700 shadow-sm ring-1 ring-secondary-200'
+                    : 'text-secondary-600 hover:text-secondary-900 hover:bg-surface/60'
+                }`
+              }
+            >
+              <Activity size={14} className="flex-shrink-0" />
+              <span>Overview</span>
+            </NavLink>
+
+            <NavLink
+              to="/insights/record"
+              id="insights-nav-record"
+              className={({ isActive }) =>
+                `flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-1 sm:flex-initial no-underline ${
+                  isActive
+                    ? 'bg-surface text-primary-700 shadow-sm ring-1 ring-secondary-200'
+                    : 'text-secondary-600 hover:text-secondary-900 hover:bg-surface/60'
+                }`
+              }
+            >
+              <Clock size={14} className="flex-shrink-0" />
+              <span>Civic Record</span>
+            </NavLink>
+
+            <NavLink
+              to="/insights/services"
+              id="insights-nav-services"
+              className={({ isActive }) =>
+                `flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex-1 sm:flex-initial no-underline ${
+                  isActive
+                    ? 'bg-surface text-primary-700 shadow-sm ring-1 ring-secondary-200'
+                    : 'text-secondary-600 hover:text-secondary-900 hover:bg-surface/60'
+                }`
+              }
+            >
+              <Layers size={14} className="flex-shrink-0" />
+              <span>Services</span>
+            </NavLink>
+          </div>
+        </nav>
       </section>
 
-      {/* ── Main 3 Streamlined Sections: 1. Overview, 2. Civic Record, 3. Services ── */}
+      {/* ── Sub-route Page Content ── */}
       {isLoading ? (
         <div className="py-16 text-center space-y-3">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
@@ -1212,20 +1271,28 @@ export default function CivicInsights() {
         </div>
       ) : (
         <div className="space-y-6">
-          <OverviewSection
-            complaints={localityComplaints}
-            pincode={selectedPincode}
-            localityInfo={localityInfo}
-            getComplaintVerification={getComplaintVerification}
-          />
-          <CivicRecordSection
-            pincode={selectedPincode}
-            localityInfo={localityInfo}
-          />
-          <ServicesSection
-            pincode={selectedPincode}
-            complaints={localityComplaints}
-          />
+          {isOverviewRoute && (
+            <OverviewSection
+              complaints={localityComplaints}
+              pincode={selectedPincode}
+              localityInfo={localityInfo}
+              getComplaintVerification={getComplaintVerification}
+            />
+          )}
+
+          {isRecordRoute && (
+            <CivicRecordSection
+              pincode={selectedPincode}
+              localityInfo={localityInfo}
+            />
+          )}
+
+          {isServicesRoute && (
+            <ServicesSection
+              pincode={selectedPincode}
+              complaints={localityComplaints}
+            />
+          )}
         </div>
       )}
     </div>

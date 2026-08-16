@@ -52,6 +52,8 @@ export default function App() {
                 <Route path="/my-complaints" element={<MyComplaints />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/insights" element={<CivicInsights />} />
+                <Route path="/insights/record" element={<CivicInsights />} />
+                <Route path="/insights/services" element={<CivicInsights />} />
               </Route>
 
               {/* ── Municipal login (no layout wrapper) ─────────────────────── */}
