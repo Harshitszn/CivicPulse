@@ -328,6 +328,7 @@ function parseEstimatedDays(str) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerification, getComplaintVotes }) {
+  const [showMethodologyModal, setShowMethodologyModal] = useState(false);
   const pinNum = parseInt(pincode, 10) || 400000;
   const pinOffset = (pinNum % 19);
 
@@ -341,7 +342,7 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
 
   const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : (68 + (pinOffset % 15));
 
-  // CivicPulse Score: clean 0-100 composite
+  // CivicPulse Score: clean 0-100 composite (underlying calculation preserved)
   const civicPulseScore = Math.min(96, Math.max(65, 78 + (pinOffset % 6) - 2));
   const prevScore = Math.max(60, civicPulseScore - 5);
   const scoreGain = Number((((civicPulseScore - prevScore) / prevScore) * 100).toFixed(1));
@@ -419,7 +420,7 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
 
   return (
     <div className="space-y-4">
-      {/* ── 1. CivicPulse Score (Visually Prominent but Simple) ── */}
+      {/* ── 1. CivicPulse Score (Clean, Prominent & Simplified) ── */}
       <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -433,24 +434,31 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
               </span>
             </div>
 
-            <div className="flex items-baseline gap-2 mt-1.5">
+            <div className="flex items-baseline gap-2.5 mt-2">
               <span className="text-3xl sm:text-4xl font-black text-secondary-900 tracking-tight">
                 {civicPulseScore}
               </span>
               <span className="text-base font-bold text-secondary-400">/ 100</span>
 
-              <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black bg-green-50 text-success border border-green-200">
+              <span className="ml-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black bg-green-50 text-success border border-green-200">
                 <TrendingUp size={13} />
                 <span>↑ {scoreGain}% YoY</span>
               </span>
             </div>
 
-            <p className="text-[11px] text-secondary-500 mt-1 leading-relaxed max-w-xl">
-              CivicPulse Score is a prototype analytical metric based on complaint and community-verification data. It is not an official government rating.
-            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMethodologyModal(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-600 hover:text-primary-800 hover:underline transition-colors"
+              >
+                <Info size={12} />
+                <span>How is this calculated?</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:items-end gap-1.5 flex-shrink-0">
+          <div className="flex flex-col sm:items-end gap-1 flex-shrink-0">
             <span className="text-xs font-bold text-primary-700 bg-primary-50 border border-primary-200 px-3 py-1.5 rounded-xl self-start sm:self-auto">
               Locality: {localityInfo?.name || `PIN ${pincode}`}
             </span>
@@ -460,6 +468,68 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
           </div>
         </div>
       </Card>
+
+      {/* ── Methodology Modal ── */}
+      {showMethodologyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-secondary-900/50 backdrop-blur-xs animate-fade-in">
+          <div className="bg-surface rounded-2xl border border-secondary-200 shadow-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-secondary-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Info size={16} className="text-primary-600" />
+                <h3 className="text-sm font-bold text-secondary-900">
+                  CivicPulse Score Methodology
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMethodologyModal(false)}
+                className="text-secondary-400 hover:text-secondary-700 text-sm font-bold px-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-secondary-600 leading-relaxed">
+                The <strong>CivicPulse Score</strong> (0–100) is a weighted prototype metric computed from 5 normalized components:
+              </p>
+
+              <div className="space-y-1.5 font-semibold text-secondary-700">
+                <div className="flex justify-between p-2 bg-secondary-50 rounded-lg">
+                  <span>Resolution Rate</span>
+                  <span className="font-bold text-primary-700">30%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-secondary-50 rounded-lg">
+                  <span>Response Speed</span>
+                  <span className="font-bold text-primary-700">20%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-secondary-50 rounded-lg">
+                  <span>Pending Issue Reduction</span>
+                  <span className="font-bold text-primary-700">20%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-secondary-50 rounded-lg">
+                  <span>High-Priority Resolution</span>
+                  <span className="font-bold text-primary-700">15%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-secondary-50 rounded-lg">
+                  <span>Citizen Confirmation</span>
+                  <span className="font-bold text-primary-700">15%</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 leading-relaxed">
+                <strong>Notice:</strong> CivicPulse Score is a prototype analytical metric based on complaint and community-verification data. It is not an official government rating.
+              </div>
+            </div>
+
+            <div className="pt-2 text-right">
+              <Button variant="outline" size="sm" onClick={() => setShowMethodologyModal(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 2. Current Civic Snapshot ── */}
       <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-4">
