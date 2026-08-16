@@ -1733,6 +1733,7 @@ export default function CivicInsights() {
           {isServicesRoute && (
             <ServicesSection
               pincode={selectedPincode}
+              localityInfo={localityInfo}
               complaints={localityComplaints}
             />
           )}
