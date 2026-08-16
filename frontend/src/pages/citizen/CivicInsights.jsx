@@ -666,7 +666,7 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function CivicRecordSection({ pincode, localityInfo }) {
-  const [activeChartTab, setActiveChartTab] = useState('all');
+  const [activeChartTab, setActiveChartTab] = useState('grid');
   const historyData = useMemo(() => generate5YearHistory(pincode), [pincode]);
   const [selectedYear, setSelectedYear] = useState('2026');
 
@@ -723,358 +723,404 @@ function CivicRecordSection({ pincode, localityInfo }) {
   };
 
   return (
-    <div>
-      <SectionHeader
-        number="2"
-        title="Civic Record"
-        badge={
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
-            <span>📊</span>
-            <span>Prototype/Demo Data</span>
-          </span>
-        }
-      />
+    <div className="space-y-4">
+      {/* ── Section Title & Subtitle ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-secondary-900 tracking-tight">
+              Civic Record
+            </h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
+              <span>📊</span>
+              <span>Prototype/Demo Data</span>
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm font-medium text-secondary-500 mt-0.5">
+            Local civic outcomes over the selected 5-year period.
+          </p>
+        </div>
 
-      <Card variant="flat" className="p-4 sm:p-5 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-secondary-100">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-primary-700 bg-primary-50 border border-primary-200 px-3 py-1.5 rounded-xl">
+            Selected Locality: <strong>{localityInfo?.name || `Pincode ${pincode}`} ({pincode})</strong>
+          </span>
+        </div>
+      </div>
+
+      {/* ── 5-Year Aggregate Summary Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="p-3.5 bg-surface rounded-2xl border border-secondary-200 shadow-xs">
+          <p className="text-[10px] uppercase font-bold text-secondary-400">5-Yr Total Volume</p>
+          <p className="text-xl font-black text-secondary-900 mt-0.5">{summary.totalAll5Yrs.toLocaleString()}</p>
+          <p className="text-[10px] text-secondary-500">2022–2026 reports logged</p>
+        </div>
+        <div className="p-3.5 bg-surface rounded-2xl border border-secondary-200 shadow-xs">
+          <p className="text-[10px] uppercase font-bold text-green-700">5-Yr Total Resolved</p>
+          <p className="text-xl font-black text-success mt-0.5">{summary.resolvedAll5Yrs.toLocaleString()}</p>
+          <p className="text-[10px] text-green-600">{summary.overall5YrRate}% cumulative resolution</p>
+        </div>
+        <div className="p-3.5 bg-surface rounded-2xl border border-secondary-200 shadow-xs">
+          <p className="text-[10px] uppercase font-bold text-primary-700">Resolution Rate Jump</p>
+          <p className="text-xl font-black text-primary-700 mt-0.5">{historyData[0].resolutionRate}% → {historyData[4].resolutionRate}%</p>
+          <p className="text-[10px] text-primary-600">+{summary.rateGain}% 5-year growth</p>
+        </div>
+        <div className="p-3.5 bg-surface rounded-2xl border border-secondary-200 shadow-xs">
+          <p className="text-[10px] uppercase font-bold text-purple-700">Resolution Speed</p>
+          <p className="text-xl font-black text-purple-700 mt-0.5">{historyData[0].avgResolutionTime}d → {historyData[4].avgResolutionTime}d</p>
+          <p className="text-[10px] text-purple-600">{summary.timeImprovement}% faster closure</p>
+        </div>
+      </div>
+
+      {/* ── Primary Visualizations Selector ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-secondary-100">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-secondary-900">
-                5-Year Civic Service Trends
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 font-bold text-[11px] border border-primary-100">
-                Representation Period: 2022–2026
-              </span>
-            </div>
-            <p className="text-[11px] text-secondary-500 mt-1">
-              Civic outcomes recorded during the selected period for <strong>Pincode {pincode}</strong> ({localityInfo?.name || 'Local Area'}).
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+              <TrendingUp size={15} className="text-primary-600" />
+              <span>Historical Visualizations (2022–2026)</span>
+            </h3>
+            <p className="text-[11px] text-secondary-400 mt-0.5">
+              Annual performance indices for Pincode {pincode}
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
-            <span className="text-xs font-black text-success bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
-              +{summary.rateGain}% 5-Yr Resolution Gain
-            </span>
+          <div className="inline-flex p-0.5 bg-secondary-100 rounded-xl text-xs overflow-x-auto no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setActiveChartTab('grid')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                activeChartTab === 'grid'
+                  ? 'bg-surface text-primary-700 shadow-xs ring-1 ring-secondary-200'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              All 4 Charts (Grid)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveChartTab('volume')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                activeChartTab === 'volume'
+                  ? 'bg-surface text-primary-700 shadow-xs ring-1 ring-secondary-200'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              1. Volume Trend
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveChartTab('rate')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                activeChartTab === 'rate'
+                  ? 'bg-surface text-primary-700 shadow-xs ring-1 ring-secondary-200'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              2. Resolution Rate
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveChartTab('time')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                activeChartTab === 'time'
+                  ? 'bg-surface text-primary-700 shadow-xs ring-1 ring-secondary-200'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              3. Resolution Time
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveChartTab('pending_vs_resolved')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all whitespace-nowrap ${
+                activeChartTab === 'pending_vs_resolved'
+                  ? 'bg-surface text-primary-700 shadow-xs ring-1 ring-secondary-200'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              4. Pending vs Resolved
+            </button>
           </div>
         </div>
 
-        {/* ── Visual Civic Timeline (2022 – 2026) ── */}
-        <div className="space-y-3 pt-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-primary-600 animate-pulse" />
-              <h3 className="text-xs font-bold text-secondary-900">
-                Visual Civic Timeline (2022–2026)
-              </h3>
-            </div>
-            <span className="text-[11px] text-secondary-400">
-              Click a year to highlight metrics
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
-            {historyData.map((item) => {
-              const isSelected = item.year === selectedYear;
-              const trendStyle = getTrendStyle(item.outcomeTrend);
-
-              return (
-                <button
-                  key={item.year}
-                  type="button"
-                  onClick={() => setSelectedYear(item.year)}
-                  className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col justify-between group ${
-                    isSelected
-                      ? 'bg-primary-50/40 border-primary-500 shadow-md ring-2 ring-primary-500/20'
-                      : 'bg-surface border-secondary-200 hover:border-primary-300 hover:bg-secondary-50/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 mb-2">
-                    <span className={`text-sm font-black ${isSelected ? 'text-primary-700' : 'text-secondary-900'}`}>
-                      {item.year}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${trendStyle.bg}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${trendStyle.dot}`} />
-                      {trendStyle.label}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 text-[11px]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-400">Volume:</span>
-                      <span className="font-bold text-secondary-800">{item.total.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-400">Res. Rate:</span>
-                      <span className="font-extrabold text-success">{item.resolutionRate}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-400">Avg. Time:</span>
-                      <span className="font-bold text-secondary-700">{item.avgResolutionTime}d</span>
-                    </div>
-                    <div className="pt-1 border-t border-secondary-100 mt-1">
-                      <p className="text-[10px] text-secondary-400 truncate">Major Service:</p>
-                      <p className="text-[10px] font-bold text-secondary-800 truncate flex items-center gap-1">
-                        <span>{item.majorCategoryEmoji}</span>
-                        <span>{item.majorCategory}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {isSelected && (
-                    <div className="mt-2 text-center">
-                      <span className="text-[9px] font-extrabold uppercase text-primary-600 bg-primary-100/70 px-2 py-0.5 rounded-full">
-                        ● Selected
-                      </span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {activeYearData && (
-            <div className="p-3.5 bg-secondary-50/70 rounded-2xl border border-secondary-200">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-secondary-200">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-secondary-900">
-                    Year {activeYearData.year} Civic Outcome Spotlight
-                  </span>
-                  {(() => {
-                    const ts = getTrendStyle(activeYearData.outcomeTrend);
-                    return (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${ts.bg}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${ts.dot}`} />
-                        Outcome Trend: {ts.label}
-                      </span>
-                    );
-                  })()}
+        {/* ── 4 Primary Charts Grid ── */}
+        <div className={`grid gap-4 ${activeChartTab === 'grid' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+          {/* Chart 1: Complaint Volume Trend */}
+          {(activeChartTab === 'grid' || activeChartTab === 'volume') && (
+            <div className="p-3.5 bg-secondary-50/60 rounded-2xl border border-secondary-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-xs font-bold text-secondary-800">
+                    1. Complaint Volume Trend
+                  </p>
+                  <p className="text-[10px] text-secondary-400">
+                    Total complaints submitted each year (2022–2026)
+                  </p>
                 </div>
-
-                <span className="text-[11px] text-secondary-500 font-medium">
-                  {activeYearData.resolved.toLocaleString()} of {activeYearData.total.toLocaleString()} complaints resolved ({activeYearData.resolutionRate}%)
+                <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded border border-primary-200">
+                  {historyData[4].total.toLocaleString()} in 2026
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {activeYearData.neutralSummary?.map((stmt, sIdx) => (
-                  <div key={sIdx} className="flex items-start gap-1.5 text-secondary-600">
-                    <span className="text-primary-600 font-bold mt-0.5">▪</span>
-                    <span>{stmt}</span>
-                  </div>
-                ))}
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                    <Tooltip
+                      contentStyle={CUSTOM_TOOLTIP_STYLE}
+                      formatter={(val) => [val.toLocaleString(), 'Total Complaints']}
+                      labelFormatter={(label) => `Year ${label}`}
+                    />
+                    <Bar dataKey="total" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={26} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Chart 2: Resolution Rate Trend */}
+          {(activeChartTab === 'grid' || activeChartTab === 'rate') && (
+            <div className="p-3.5 bg-secondary-50/60 rounded-2xl border border-secondary-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-xs font-bold text-secondary-800">
+                    2. Resolution Rate Trend (%)
+                  </p>
+                  <p className="text-[10px] text-secondary-400">
+                    Proportion of complaints resolved annually
+                  </p>
+                </div>
+                <span className="text-xs font-black text-success bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                  {historyData[4].resolutionRate}% in 2026
+                </span>
+              </div>
+
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="rateGradRecord" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#16A34A" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#16A34A" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      contentStyle={CUSTOM_TOOLTIP_STYLE}
+                      formatter={(val) => [`${val}%`, 'Resolution Rate']}
+                      labelFormatter={(label) => `Year ${label}`}
+                    />
+                    <Area type="monotone" dataKey="resolutionRate" stroke="#16A34A" strokeWidth={2.5} fillOpacity={1} fill="url(#rateGradRecord)" dot={{ r: 4, fill: '#16A34A', strokeWidth: 2, stroke: '#FFFFFF' }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Chart 3: Average Resolution Time Trend */}
+          {(activeChartTab === 'grid' || activeChartTab === 'time') && (
+            <div className="p-3.5 bg-secondary-50/60 rounded-2xl border border-secondary-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-xs font-bold text-secondary-800">
+                    3. Average Resolution Time (Days)
+                  </p>
+                  <p className="text-[10px] text-secondary-400">
+                    Average turnaround duration from report to resolution
+                  </p>
+                </div>
+                <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                  {historyData[4].avgResolutionTime} Days (Fastest)
+                </span>
+              </div>
+
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}d`} />
+                    <Tooltip
+                      contentStyle={CUSTOM_TOOLTIP_STYLE}
+                      formatter={(val) => [`${val} Days`, 'Average Resolution Time']}
+                      labelFormatter={(label) => `Year ${label}`}
+                    />
+                    <Bar dataKey="avgResolutionTime" fill="#8B5CF6" radius={[4, 4, 0, 0]} barSize={26} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Chart 4: Pending vs Resolved Comparison */}
+          {(activeChartTab === 'grid' || activeChartTab === 'pending_vs_resolved') && (
+            <div className="p-3.5 bg-secondary-50/60 rounded-2xl border border-secondary-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-xs font-bold text-secondary-800">
+                    4. Pending vs. Resolved Comparison
+                  </p>
+                  <p className="text-[10px] text-secondary-400">
+                    Distribution of Resolved, In Progress, and Pending complaints
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-semibold text-secondary-500">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#16A34A]" /> Res</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#2563EB]" /> In Prog</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-[#D97706]" /> Pend</span>
+                </div>
+              </div>
+
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                    <Tooltip
+                      contentStyle={CUSTOM_TOOLTIP_STYLE}
+                      formatter={(val, name) => {
+                        const labels = {
+                          resolved: 'Resolved',
+                          inProgress: 'In Progress',
+                          pending: 'Pending',
+                        };
+                        return [val.toLocaleString(), labels[name] || name];
+                      }}
+                      labelFormatter={(label) => `Year ${label}`}
+                    />
+                    <Bar dataKey="resolved" name="resolved" stackId="a" fill="#16A34A" radius={[0, 0, 0, 0]} barSize={26} />
+                    <Bar dataKey="inProgress" name="inProgress" stackId="a" fill="#2563EB" radius={[0, 0, 0, 0]} barSize={26} />
+                    <Bar dataKey="pending" name="pending" stackId="a" fill="#D97706" radius={[4, 4, 0, 0]} barSize={26} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           )}
         </div>
+      </Card>
 
-        {/* 5-Year Aggregate Summary Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="p-3 bg-secondary-50/80 rounded-xl border border-secondary-100">
-            <p className="text-[10px] uppercase font-bold text-secondary-400">5-Yr Total Complaints</p>
-            <p className="text-lg font-black text-secondary-900 mt-0.5">{summary.totalAll5Yrs.toLocaleString()}</p>
-            <p className="text-[10px] text-secondary-500">2022–2026 logged</p>
+      {/* ── Year-by-Year Timeline Underneath ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-4">
+        <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
+          <div className="flex items-center gap-2">
+            <Clock size={15} className="text-primary-600" />
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800">
+              Year-by-Year Civic Timeline (2022–2026)
+            </h3>
           </div>
-          <div className="p-3 bg-green-50/60 rounded-xl border border-green-100">
-            <p className="text-[10px] uppercase font-bold text-green-700">5-Yr Total Resolved</p>
-            <p className="text-lg font-black text-green-800 mt-0.5">{summary.resolvedAll5Yrs.toLocaleString()}</p>
-            <p className="text-[10px] text-green-600">{summary.overall5YrRate}% cumulative rate</p>
-          </div>
-          <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
-            <p className="text-[10px] uppercase font-bold text-primary-700">Resolution Rate Jump</p>
-            <p className="text-lg font-black text-primary-800 mt-0.5">{historyData[0].resolutionRate}% → {historyData[4].resolutionRate}%</p>
-            <p className="text-[10px] text-primary-600">+{summary.rateGain}% efficiency growth</p>
-          </div>
-          <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
-            <p className="text-[10px] uppercase font-bold text-purple-700">Resolution Speed</p>
-            <p className="text-lg font-black text-purple-800 mt-0.5">{historyData[0].avgResolutionTime}d → {historyData[4].avgResolutionTime}d</p>
-            <p className="text-[10px] text-purple-600">{summary.timeImprovement}% faster turnaround</p>
-          </div>
+          <span className="text-[11px] text-secondary-400">
+            Click any year to highlight observations
+          </span>
         </div>
 
-        {/* Chart View Selector Tabs */}
-        <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-          <span className="text-xs font-semibold text-secondary-600">Interactive Visualizations:</span>
-          <div className="inline-flex p-0.5 bg-secondary-100 rounded-lg text-xs">
-            <button
-              onClick={() => setActiveChartTab('all')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                activeChartTab === 'all'
-                  ? 'bg-surface text-secondary-900 shadow-sm'
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              All Trends
-            </button>
-            <button
-              onClick={() => setActiveChartTab('volume')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                activeChartTab === 'volume'
-                  ? 'bg-surface text-secondary-900 shadow-sm'
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              1. Complaints Volume
-            </button>
-            <button
-              onClick={() => setActiveChartTab('rate')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                activeChartTab === 'rate'
-                  ? 'bg-surface text-secondary-900 shadow-sm'
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              2. Resolution Rate (%)
-            </button>
-            <button
-              onClick={() => setActiveChartTab('time')}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
-                activeChartTab === 'time'
-                  ? 'bg-surface text-secondary-900 shadow-sm'
-                  : 'text-secondary-600 hover:text-secondary-900'
-              }`}
-            >
-              3. Resolution Time (Days)
-            </button>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+          {historyData.map((item) => {
+            const isSelected = item.year === selectedYear;
+            const trendStyle = getTrendStyle(item.outcomeTrend);
+
+            return (
+              <button
+                key={item.year}
+                type="button"
+                onClick={() => setSelectedYear(item.year)}
+                className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col justify-between group ${
+                  isSelected
+                    ? 'bg-primary-50/50 border-primary-500 shadow-md ring-2 ring-primary-500/20'
+                    : 'bg-surface border-secondary-200 hover:border-primary-300 hover:bg-secondary-50/50'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1 mb-2">
+                  <span className={`text-sm font-black ${isSelected ? 'text-primary-700' : 'text-secondary-900'}`}>
+                    {item.year}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${trendStyle.bg}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${trendStyle.dot}`} />
+                    {trendStyle.label}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-[11px]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-secondary-400">Volume:</span>
+                    <span className="font-bold text-secondary-800">{item.total.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-secondary-400">Res. Rate:</span>
+                    <span className="font-extrabold text-success">{item.resolutionRate}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-secondary-400">Avg. Time:</span>
+                    <span className="font-bold text-secondary-700">{item.avgResolutionTime}d</span>
+                  </div>
+                  <div className="pt-1 border-t border-secondary-100 mt-1">
+                    <p className="text-[10px] text-secondary-400 truncate">Top Category:</p>
+                    <p className="text-[10px] font-bold text-secondary-800 truncate flex items-center gap-1">
+                      <span>{item.majorCategoryEmoji}</span>
+                      <span>{item.majorCategory}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {isSelected && (
+                  <div className="mt-2 text-center">
+                    <span className="text-[9px] font-extrabold uppercase text-primary-600 bg-primary-100/70 px-2 py-0.5 rounded-full">
+                      ● Selected
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* ── Chart 1: Total Complaints & Status Breakdown ── */}
-        {(activeChartTab === 'all' || activeChartTab === 'volume') && (
-          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-bold text-secondary-800">
-                  1. Total Complaints & Status Breakdown by Year (2022–2026)
-                </p>
-                <p className="text-[11px] text-secondary-400">
-                  Stacked breakdown of Resolved, In Progress, and Pending complaints
-                </p>
+        {activeYearData && (
+          <div className="p-3.5 bg-secondary-50/80 rounded-2xl border border-secondary-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-secondary-200">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-secondary-900">
+                  Year {activeYearData.year} Outcome Summary
+                </span>
+                {(() => {
+                  const ts = getTrendStyle(activeYearData.outcomeTrend);
+                  return (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${ts.bg}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${ts.dot}`} />
+                      Trend: {ts.label}
+                    </span>
+                  );
+                })()}
               </div>
-              <div className="flex items-center gap-3 text-[11px] font-medium text-secondary-500">
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#16A34A]" /> Resolved
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#2563EB]" /> In Progress
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[#D97706]" /> Pending
-                </span>
-              </div>
-            </div>
 
-            <div className="h-52 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-                  <Tooltip
-                    contentStyle={CUSTOM_TOOLTIP_STYLE}
-                    formatter={(val, name) => {
-                      const labels = {
-                        resolved: 'Resolved',
-                        inProgress: 'In Progress',
-                        pending: 'Pending',
-                        total: 'Total Complaints',
-                      };
-                      return [val.toLocaleString(), labels[name] || name];
-                    }}
-                    labelFormatter={(label) => `Year ${label} · Complaints Distribution`}
-                  />
-                  <Bar dataKey="resolved" name="resolved" stackId="a" fill="#16A34A" radius={[0, 0, 0, 0]} barSize={32} />
-                  <Bar dataKey="inProgress" name="inProgress" stackId="a" fill="#2563EB" radius={[0, 0, 0, 0]} barSize={32} />
-                  <Bar dataKey="pending" name="pending" stackId="a" fill="#D97706" radius={[4, 4, 0, 0]} barSize={32} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* ── Chart 2: Resolution Rate Trend ── */}
-        {(activeChartTab === 'all' || activeChartTab === 'rate') && (
-          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-bold text-secondary-800">
-                  2. Annual Resolution Rate (%) Trend (2022–2026)
-                </p>
-                <p className="text-[11px] text-secondary-400">
-                  Percentage of logged complaints resolved within the respective civic calendar year
-                </p>
-              </div>
-              <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
-                Current: {historyData[4].resolutionRate}%
+              <span className="text-[11px] text-secondary-600 font-medium">
+                {activeYearData.resolved.toLocaleString()} resolved / {activeYearData.total.toLocaleString()} total ({activeYearData.resolutionRate}% rate · {activeYearData.avgResolutionTime} days avg)
               </span>
             </div>
 
-            <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
-                  <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    contentStyle={CUSTOM_TOOLTIP_STYLE}
-                    formatter={(val) => [`${val}%`, 'Resolution Rate']}
-                    labelFormatter={(label) => `Civic Year ${label}`}
-                  />
-                  <Area type="monotone" dataKey="resolutionRate" stroke="#2563EB" strokeWidth={2.5} fillOpacity={1} fill="url(#rateGradient)" dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#FFFFFF' }} />
-                </AreaChart>
-              </ResponsiveContainer>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              {activeYearData.neutralSummary?.map((stmt, sIdx) => (
+                <div key={sIdx} className="flex items-start gap-1.5 text-secondary-600">
+                  <span className="text-primary-600 font-bold mt-0.5">▪</span>
+                  <span>{stmt}</span>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* ── Chart 3: Average Resolution Time Trend ── */}
-        {(activeChartTab === 'all' || activeChartTab === 'time') && (
-          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-xs font-bold text-secondary-800">
-                  3. Average Resolution Time by Year (2022–2026)
-                </p>
-                <p className="text-[11px] text-secondary-400">
-                  Mean turnaround duration in days between ticket lodging and civic closure
-                </p>
-              </div>
-              <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                Fastest: {historyData[4].avgResolutionTime} Days
-              </span>
-            </div>
-
-            <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}d`} />
-                  <Tooltip
-                    contentStyle={CUSTOM_TOOLTIP_STYLE}
-                    formatter={(val) => [`${val} Days`, 'Average Resolution Time']}
-                    labelFormatter={(label) => `Civic Year ${label}`}
-                  />
-                  <Bar dataKey="avgResolutionTime" fill="#8B5CF6" radius={[4, 4, 0, 0]} barSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Comprehensive 5-Year Data Table */}
+        {/* ── Comprehensive 5-Year Data Table ── */}
         <div className="pt-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-secondary-800">
-              Detailed 5-Year Metric Breakdown (2022 – 2026)
+              Tabular 5-Year Performance Metrics (2022–2026)
             </p>
             <span className="text-[11px] text-secondary-400">
-              Selected Year highlighted in table
+              Includes all 6 key civic metrics
             </span>
           </div>
 
@@ -1142,7 +1188,7 @@ function CivicRecordSection({ pincode, localityInfo }) {
           </p>
           <p>
             Civic outcomes recorded during the selected period (2022–2026). Metrics represent aggregated public utility performance and administrative ward service logs for <strong>Pincode {pincode}</strong>.
-            This data reflects public utility and service operations and is not affiliated with or representative of any specific individual or political campaign.
+            This data reflects public utility and service operations and is not affiliated with or representative of any specific individual or political campaign. Prototype estimations are shown until verified municipal audits are connected.
           </p>
         </div>
       </Card>
