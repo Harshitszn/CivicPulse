@@ -24,9 +24,14 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
+  Legend,
   CartesianGrid,
 } from 'recharts';
 import { usePincode } from '../../context/PincodeContext';
@@ -106,15 +111,125 @@ const SERVICE_CATEGORIES = [
 
 function generate5YearHistory(pincode) {
   const pinNum = parseInt(pincode, 10) || 400000;
-  const baseRate = 58 + (pinNum % 22);
+  const pinOffset = (pinNum % 19);
 
-  return [
-    { year: '2021', rate: Math.max(48, Math.min(88, baseRate - 12)), total: 380 + (pinNum % 80), resolved: Math.round((380 + (pinNum % 80)) * ((baseRate - 12) / 100)) },
-    { year: '2022', rate: Math.max(52, Math.min(90, baseRate - 7)), total: 420 + (pinNum % 90), resolved: Math.round((420 + (pinNum % 90)) * ((baseRate - 7) / 100)) },
-    { year: '2023', rate: Math.max(56, Math.min(92, baseRate - 2)), total: 490 + (pinNum % 110), resolved: Math.round((490 + (pinNum % 110)) * ((baseRate - 2) / 100)) },
-    { year: '2024', rate: Math.max(62, Math.min(95, baseRate + 5)), total: 540 + (pinNum % 120), resolved: Math.round((540 + (pinNum % 120)) * ((baseRate + 5) / 100)) },
-    { year: '2025', rate: Math.max(68, Math.min(98, baseRate + 11)), total: 590 + (pinNum % 140), resolved: Math.round((590 + (pinNum % 140)) * ((baseRate + 11) / 100)) },
+  const majorCategoriesByYear = [
+    { year: '2022', majorCategory: 'Roads & Potholes', emoji: '🛣️', share: '36%' },
+    { year: '2023', majorCategory: 'Water Supply', emoji: '💧', share: '32%' },
+    { year: '2024', majorCategory: 'Drainage & Stormwater', emoji: '🌊', share: '29%' },
+    { year: '2025', majorCategory: 'Sanitation & Waste', emoji: '🗑️', share: '34%' },
+    { year: '2026', majorCategory: 'Roads & Potholes', emoji: '🛣️', share: '31%' },
   ];
+
+  // 5-Year Historical civic record: 2022 to 2026
+  const yearConfigs = [
+    { year: '2022', baseTotal: 410 + pinOffset * 9,  baseRate: 53 + (pinNum % 8),  avgDays: 14.8 - (pinNum % 3) * 0.4 },
+    { year: '2023', baseTotal: 470 + pinOffset * 10, baseRate: 61 + (pinNum % 9),  avgDays: 12.3 - (pinNum % 3) * 0.4 },
+    { year: '2024', baseTotal: 530 + pinOffset * 11, baseRate: 69 + (pinNum % 10), avgDays: 9.6  - (pinNum % 3) * 0.3 },
+    { year: '2025', baseTotal: 585 + pinOffset * 12, baseRate: 77 + (pinNum % 9),  avgDays: 7.4  - (pinNum % 3) * 0.3 },
+    { year: '2026', baseTotal: 630 + pinOffset * 13, baseRate: 84 + (pinNum % 7),  avgDays: 5.6  - (pinNum % 3) * 0.2 },
+  ];
+
+  const raw = yearConfigs.map((item, idx) => {
+    const total = item.baseTotal;
+    const rate = Math.min(96, Math.max(48, item.baseRate));
+    const resolved = Math.round(total * (rate / 100));
+    const unresolved = total - resolved;
+    // In progress is roughly 60% of unresolved, pending is the remainder
+    const inProgress = Math.max(1, Math.round(unresolved * 0.62));
+    const pending = Math.max(0, unresolved - inProgress);
+    const avgResolutionTime = Number(Math.max(2.5, item.avgDays).toFixed(1));
+    const cat = majorCategoriesByYear[idx];
+
+    return {
+      year: item.year,
+      total,
+      resolved,
+      inProgress,
+      pending,
+      resolutionRate: rate,
+      rate, // backward compatible
+      avgResolutionTime,
+      majorCategory: cat.majorCategory,
+      majorCategoryEmoji: cat.emoji,
+      majorCategoryShare: cat.share,
+    };
+  });
+
+  // Calculate year-over-year neutral outcome descriptors
+  return raw.map((item, idx) => {
+    if (idx === 0) {
+      return {
+        ...item,
+        outcomeTrend: 'stable',
+        outcomeLabel: 'Baseline Year',
+        volumeDiff: 0,
+        rateDiff: 0,
+        timeDiff: 0,
+        neutralSummary: [
+          'Initial observation year for historical recording.',
+          `Major service category: ${item.majorCategory} (${item.majorCategoryShare} of local reports).`,
+          `Resolution rate recorded at ${item.resolutionRate}%.`,
+          `Average resolution time recorded at ${item.avgResolutionTime} days.`,
+        ],
+      };
+    }
+
+    const prev = raw[idx - 1];
+    const volumeDiff = item.total - prev.total;
+    const rateDiff = item.resolutionRate - prev.resolutionRate;
+    const timeDiff = Number((item.avgResolutionTime - prev.avgResolutionTime).toFixed(1));
+
+    // Determine neutral outcome trend: improving | stable | declining
+    let outcomeTrend = 'stable';
+    if (rateDiff >= 3 || timeDiff <= -0.8) {
+      outcomeTrend = 'improving';
+    } else if (rateDiff <= -3 || timeDiff >= 0.8) {
+      outcomeTrend = 'declining';
+    }
+
+    const neutralSummary = [];
+
+    // Resolution rate neutral statement
+    if (rateDiff > 0) {
+      neutralSummary.push(`Resolution rate increased from ${prev.resolutionRate}% to ${item.resolutionRate}% (+${rateDiff}% vs ${prev.year}).`);
+    } else if (rateDiff < 0) {
+      neutralSummary.push(`Resolution rate decreased from ${prev.resolutionRate}% to ${item.resolutionRate}% (${rateDiff}% vs ${prev.year}).`);
+    } else {
+      neutralSummary.push(`Resolution rate remained stable at ${item.resolutionRate}%.`);
+    }
+
+    // Resolution time neutral statement
+    if (timeDiff < 0) {
+      neutralSummary.push(`Average resolution time decreased from ${prev.avgResolutionTime}d to ${item.avgResolutionTime}d (${Math.abs(timeDiff)} days faster).`);
+    } else if (timeDiff > 0) {
+      neutralSummary.push(`Average resolution time increased from ${prev.avgResolutionTime}d to ${item.avgResolutionTime}d (+${timeDiff} days).`);
+    } else {
+      neutralSummary.push(`Average resolution time remained unchanged at ${item.avgResolutionTime} days.`);
+    }
+
+    // Complaint volume neutral statement
+    if (volumeDiff > 0) {
+      neutralSummary.push(`Complaint volume increased from ${prev.total} to ${item.total} (+${volumeDiff} complaints).`);
+    } else if (volumeDiff < 0) {
+      neutralSummary.push(`Complaint volume decreased from ${prev.total} to ${item.total} (${volumeDiff} complaints).`);
+    } else {
+      neutralSummary.push(`Complaint volume remained unchanged.`);
+    }
+
+    // Major service category neutral statement
+    neutralSummary.push(`Major service category: ${item.majorCategory} (${item.majorCategoryShare} of annual volume).`);
+
+    return {
+      ...item,
+      outcomeTrend,
+      outcomeLabel: outcomeTrend === 'improving' ? 'Improving' : outcomeTrend === 'declining' ? 'Declining' : 'Stable',
+      volumeDiff,
+      rateDiff,
+      timeDiff,
+      neutralSummary,
+    };
+  });
 }
 
 function getServiceScore(pincode, key, liveComplaints = []) {
@@ -512,120 +627,791 @@ function CurrentSnapshotSection({ complaints, pincode, localityInfo, getComplain
 // ── 2. 5-Year Civic Record ───────────────────────────────────────────────────
 
 function FiveYearRecordSection({ pincode, localityInfo }) {
+  const [activeChartTab, setActiveChartTab] = useState('all'); // 'all' | 'volume' | 'rate' | 'time'
   const historyData = useMemo(() => generate5YearHistory(pincode), [pincode]);
+  const [selectedYear, setSelectedYear] = useState('2026');
+
+  // Find active year object
+  const activeYearData = useMemo(() => {
+    return historyData.find(d => d.year === selectedYear) || historyData[historyData.length - 1];
+  }, [historyData, selectedYear]);
+
+  const summary = useMemo(() => {
+    const totalAll5Yrs = historyData.reduce((acc, curr) => acc + curr.total, 0);
+    const resolvedAll5Yrs = historyData.reduce((acc, curr) => acc + curr.resolved, 0);
+    const startRate = historyData[0].resolutionRate;
+    const endRate = historyData[historyData.length - 1].resolutionRate;
+    const rateGain = endRate - startRate;
+    const startTime = historyData[0].avgResolutionTime;
+    const endTime = historyData[historyData.length - 1].avgResolutionTime;
+    const timeImprovement = ((startTime - endTime) / startTime) * 100;
+
+    return {
+      totalAll5Yrs,
+      resolvedAll5Yrs,
+      overall5YrRate: Math.round((resolvedAll5Yrs / totalAll5Yrs) * 100),
+      rateGain,
+      timeImprovement: Math.round(timeImprovement),
+      startYear: historyData[0].year,
+      endYear: historyData[historyData.length - 1].year,
+    };
+  }, [historyData]);
+
+  // Helper for trend badge styling
+  const getTrendStyle = (trend) => {
+    switch (trend) {
+      case 'improving':
+        return {
+          bg: 'bg-green-50 text-green-700 border-green-200',
+          dot: 'bg-green-500',
+          label: 'Improving',
+          icon: TrendingUp,
+        };
+      case 'declining':
+        return {
+          bg: 'bg-red-50 text-red-700 border-red-200',
+          dot: 'bg-red-500',
+          label: 'Declining',
+          icon: TrendingDown,
+        };
+      case 'stable':
+      default:
+        return {
+          bg: 'bg-blue-50 text-primary-700 border-blue-200',
+          dot: 'bg-primary-500',
+          label: 'Stable',
+          icon: Activity,
+        };
+    }
+  };
 
   return (
     <div>
-      <SectionHeader number="2" title="5-Year Civic Record" badge={<DemoBadge />} />
-      <Card variant="flat" className="p-4">
-        <div className="flex items-center justify-between mb-3 text-xs">
+      <SectionHeader
+        number="2"
+        title="5-Year Civic Record"
+        badge={
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
+            <span>📊</span>
+            <span>Prototype/Demo Data</span>
+          </span>
+        }
+      />
+
+      <Card variant="flat" className="p-4 sm:p-5 space-y-5">
+        {/* Header description & neutral period labeling */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-secondary-100">
           <div>
-            <p className="font-semibold text-secondary-800">Annual Resolution Rate Trend (2021 – 2025)</p>
-            <p className="text-[11px] text-secondary-400">Representation Period · Selected Locality {pincode}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-secondary-900">
+                Civic Service Trends
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 font-bold text-[11px] border border-primary-100">
+                Representation Period: 2022–2026
+              </span>
+            </div>
+            <p className="text-[11px] text-secondary-500 mt-1">
+              Civic outcomes recorded during the selected period for <strong>Pincode {pincode}</strong> ({localityInfo?.name || 'Local Area'}).
+            </p>
           </div>
-          <div className="text-right">
-            <span className="text-xs font-bold text-success">
-              +{historyData[4].rate - historyData[0].rate}% 5-Yr Progress
+
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
+            <span className="text-xs font-black text-success bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
+              +{summary.rateGain}% 5-Yr Resolution Gain
             </span>
           </div>
         </div>
 
-        <div className="h-44 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={historyData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
-              <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
-              <Tooltip
-                contentStyle={CUSTOM_TOOLTIP_STYLE}
-                formatter={(val) => [`${val}%`, 'Resolution Rate']}
-                labelFormatter={(label) => `Civic Year ${label}`}
-              />
-              <Bar dataKey="rate" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={28} />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* ── Visual Civic Timeline (2022 – 2026) ── */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-primary-600 animate-pulse" />
+              <h3 className="text-xs font-bold text-secondary-900">
+                Visual Civic Timeline (2022–2026)
+              </h3>
+            </div>
+            <span className="text-[11px] text-secondary-400">
+              Click a year to highlight metrics
+            </span>
+          </div>
+
+          {/* Timeline Track & Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+            {historyData.map((item, idx) => {
+              const isSelected = item.year === selectedYear;
+              const trendStyle = getTrendStyle(item.outcomeTrend);
+              const TrendIcon = trendStyle.icon;
+
+              return (
+                <button
+                  key={item.year}
+                  type="button"
+                  onClick={() => setSelectedYear(item.year)}
+                  className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col justify-between group ${
+                    isSelected
+                      ? 'bg-primary-50/40 border-primary-500 shadow-md ring-2 ring-primary-500/20'
+                      : 'bg-surface border-secondary-200 hover:border-primary-300 hover:bg-secondary-50/50'
+                  }`}
+                >
+                  {/* Top: Year & Outcome Trend Pill */}
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <span className={`text-sm font-black ${isSelected ? 'text-primary-700' : 'text-secondary-900'}`}>
+                      {item.year}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${trendStyle.bg}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${trendStyle.dot}`} />
+                      {trendStyle.label}
+                    </span>
+                  </div>
+
+                  {/* 4 Required Metric Data Points */}
+                  <div className="space-y-1.5 text-[11px]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-secondary-400">Volume:</span>
+                      <span className="font-bold text-secondary-800">{item.total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-secondary-400">Res. Rate:</span>
+                      <span className="font-extrabold text-success">{item.resolutionRate}%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-secondary-400">Avg. Time:</span>
+                      <span className="font-bold text-secondary-700">{item.avgResolutionTime}d</span>
+                    </div>
+                    <div className="pt-1 border-t border-secondary-100 mt-1">
+                      <p className="text-[10px] text-secondary-400 truncate">Major Service:</p>
+                      <p className="text-[10px] font-bold text-secondary-800 truncate flex items-center gap-1">
+                        <span>{item.majorCategoryEmoji}</span>
+                        <span>{item.majorCategory}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Active selection bottom indicator */}
+                  {isSelected && (
+                    <div className="mt-2 text-center">
+                      <span className="text-[9px] font-extrabold uppercase text-primary-600 bg-primary-100/70 px-2 py-0.5 rounded-full">
+                        ● Selected
+                      </span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Selected Year Detailed Spotlight Card */}
+          {activeYearData && (
+            <div className="p-3.5 bg-secondary-50/70 rounded-2xl border border-secondary-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-secondary-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-secondary-900">
+                    Year {activeYearData.year} Civic Outcome Spotlight
+                  </span>
+                  {(() => {
+                    const ts = getTrendStyle(activeYearData.outcomeTrend);
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${ts.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${ts.dot}`} />
+                        Outcome Trend: {ts.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <span className="text-[11px] text-secondary-500 font-medium">
+                  {activeYearData.resolved.toLocaleString()} of {activeYearData.total.toLocaleString()} complaints resolved ({activeYearData.resolutionRate}%)
+                </span>
+              </div>
+
+              {/* Neutral Factual Observation Bullet points */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {activeYearData.neutralSummary?.map((stmt, sIdx) => (
+                  <div key={sIdx} className="flex items-start gap-1.5 text-secondary-600">
+                    <span className="text-primary-600 font-bold mt-0.5">▪</span>
+                    <span>{stmt}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-secondary-100 text-center">
-          {historyData.map((item) => (
-            <div key={item.year} className="p-1.5 rounded-lg bg-secondary-50">
-              <p className="text-[10px] font-bold text-secondary-500">{item.year}</p>
-              <p className="text-xs font-extrabold text-primary-700">{item.rate}%</p>
-              <p className="text-[9px] text-secondary-400">{item.resolved}/{item.total}</p>
+        {/* 5-Year Aggregate Summary Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="p-3 bg-secondary-50/80 rounded-xl border border-secondary-100">
+            <p className="text-[10px] uppercase font-bold text-secondary-400">5-Yr Total Complaints</p>
+            <p className="text-lg font-black text-secondary-900 mt-0.5">{summary.totalAll5Yrs.toLocaleString()}</p>
+            <p className="text-[10px] text-secondary-500">2022–2026 logged</p>
+          </div>
+          <div className="p-3 bg-green-50/60 rounded-xl border border-green-100">
+            <p className="text-[10px] uppercase font-bold text-green-700">5-Yr Total Resolved</p>
+            <p className="text-lg font-black text-green-800 mt-0.5">{summary.resolvedAll5Yrs.toLocaleString()}</p>
+            <p className="text-[10px] text-green-600">{summary.overall5YrRate}% cumulative rate</p>
+          </div>
+          <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
+            <p className="text-[10px] uppercase font-bold text-primary-700">Resolution Rate Jump</p>
+            <p className="text-lg font-black text-primary-800 mt-0.5">{historyData[0].resolutionRate}% → {historyData[4].resolutionRate}%</p>
+            <p className="text-[10px] text-primary-600">+{summary.rateGain}% efficiency growth</p>
+          </div>
+          <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-100">
+            <p className="text-[10px] uppercase font-bold text-purple-700">Resolution Speed</p>
+            <p className="text-lg font-black text-purple-800 mt-0.5">{historyData[0].avgResolutionTime}d → {historyData[4].avgResolutionTime}d</p>
+            <p className="text-[10px] text-purple-600">{summary.timeImprovement}% faster turnaround</p>
+          </div>
+        </div>
+
+        {/* Chart View Selector Tabs */}
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+          <span className="text-xs font-semibold text-secondary-600">Interactive Visualizations:</span>
+          <div className="inline-flex p-0.5 bg-secondary-100 rounded-lg text-xs">
+            <button
+              onClick={() => setActiveChartTab('all')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                activeChartTab === 'all'
+                  ? 'bg-surface text-secondary-900 shadow-sm'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              All Trends
+            </button>
+            <button
+              onClick={() => setActiveChartTab('volume')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                activeChartTab === 'volume'
+                  ? 'bg-surface text-secondary-900 shadow-sm'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              1. Complaints Volume & Status
+            </button>
+            <button
+              onClick={() => setActiveChartTab('rate')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                activeChartTab === 'rate'
+                  ? 'bg-surface text-secondary-900 shadow-sm'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              2. Resolution Rate (%)
+            </button>
+            <button
+              onClick={() => setActiveChartTab('time')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                activeChartTab === 'time'
+                  ? 'bg-surface text-secondary-900 shadow-sm'
+                  : 'text-secondary-600 hover:text-secondary-900'
+              }`}
+            >
+              3. Resolution Time (Days)
+            </button>
+          </div>
+        </div>
+
+        {/* ── Chart 1: Total Complaints & Status Breakdown ── */}
+        {(activeChartTab === 'all' || activeChartTab === 'volume') && (
+          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold text-secondary-800">
+                  1. Total Complaints & Status Breakdown by Year (2022–2026)
+                </p>
+                <p className="text-[11px] text-secondary-400">
+                  Stacked breakdown of Resolved, In Progress, and Pending complaints
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] font-medium text-secondary-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#16A34A]" /> Resolved
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#2563EB]" /> In Progress
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-[#D97706]" /> Pending
+                </span>
+              </div>
             </div>
-          ))}
+
+            <div className="h-52 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                  <Tooltip
+                    contentStyle={CUSTOM_TOOLTIP_STYLE}
+                    formatter={(val, name) => {
+                      const labels = {
+                        resolved: 'Resolved',
+                        inProgress: 'In Progress',
+                        pending: 'Pending',
+                        total: 'Total Complaints',
+                      };
+                      return [val.toLocaleString(), labels[name] || name];
+                    }}
+                    labelFormatter={(label) => `Year ${label} · Complaints Distribution`}
+                  />
+                  <Bar dataKey="resolved" name="resolved" stackId="a" fill="#16A34A" radius={[0, 0, 0, 0]} barSize={32} />
+                  <Bar dataKey="inProgress" name="inProgress" stackId="a" fill="#2563EB" radius={[0, 0, 0, 0]} barSize={32} />
+                  <Bar dataKey="pending" name="pending" stackId="a" fill="#D97706" radius={[4, 4, 0, 0]} barSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ── Chart 2: Resolution Rate Trend ── */}
+        {(activeChartTab === 'all' || activeChartTab === 'rate') && (
+          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold text-secondary-800">
+                  2. Annual Resolution Rate (%) Trend (2022–2026)
+                </p>
+                <p className="text-[11px] text-secondary-400">
+                  Percentage of logged complaints resolved within the respective civic calendar year
+                </p>
+              </div>
+              <span className="text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
+                Current: {historyData[4].resolutionRate}%
+              </span>
+            </div>
+
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                  <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={CUSTOM_TOOLTIP_STYLE}
+                    formatter={(val) => [`${val}%`, 'Resolution Rate']}
+                    labelFormatter={(label) => `Civic Year ${label}`}
+                  />
+                  <Area type="monotone" dataKey="resolutionRate" stroke="#2563EB" strokeWidth={2.5} fillOpacity={1} fill="url(#rateGradient)" dot={{ r: 4, fill: '#2563EB', strokeWidth: 2, stroke: '#FFFFFF' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ── Chart 3: Average Resolution Time Trend ── */}
+        {(activeChartTab === 'all' || activeChartTab === 'time') && (
+          <div className="p-3.5 bg-surface rounded-xl border border-secondary-200">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs font-bold text-secondary-800">
+                  3. Average Resolution Time by Year (2022–2026)
+                </p>
+                <p className="text-[11px] text-secondary-400">
+                  Mean turnaround duration in days between ticket lodging and civic closure
+                </p>
+              </div>
+              <span className="text-xs font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                Fastest: {historyData[4].avgResolutionTime} Days
+              </span>
+            </div>
+
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                  <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}d`} />
+                  <Tooltip
+                    contentStyle={CUSTOM_TOOLTIP_STYLE}
+                    formatter={(val) => [`${val} Days`, 'Average Resolution Time']}
+                    labelFormatter={(label) => `Civic Year ${label}`}
+                  />
+                  <Bar dataKey="avgResolutionTime" fill="#8B5CF6" radius={[4, 4, 0, 0]} barSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* Comprehensive 5-Year Data Table & Yearly Cards */}
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-secondary-800">
+              Detailed 5-Year Metric Breakdown (2022 – 2026)
+            </p>
+            <span className="text-[11px] text-secondary-400">
+              Selected Year highlighted in table
+            </span>
+          </div>
+
+          {/* Mobile-friendly Grid / Responsive Table */}
+          <div className="overflow-x-auto rounded-xl border border-secondary-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-secondary-50 text-secondary-600 font-semibold border-b border-secondary-200">
+                <tr>
+                  <th className="p-2.5">Civic Year</th>
+                  <th className="p-2.5">Trend</th>
+                  <th className="p-2.5 text-right">Total</th>
+                  <th className="p-2.5 text-right text-success">Resolved</th>
+                  <th className="p-2.5 text-right text-primary-700">In Progress</th>
+                  <th className="p-2.5 text-right text-amber-600">Pending</th>
+                  <th className="p-2.5 text-right">Resolution Rate</th>
+                  <th className="p-2.5 text-right">Avg. Time</th>
+                  <th className="p-2.5">Major Category</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-secondary-100 text-secondary-700">
+                {historyData.map((row) => {
+                  const isSelected = row.year === selectedYear;
+                  const ts = getTrendStyle(row.outcomeTrend);
+                  return (
+                    <tr
+                      key={row.year}
+                      onClick={() => setSelectedYear(row.year)}
+                      className={`cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-primary-50/70 font-semibold text-secondary-900'
+                          : 'hover:bg-secondary-50/60'
+                      }`}
+                    >
+                      <td className="p-2.5 font-bold text-secondary-900 flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-primary-600 ring-2 ring-primary-300' : 'bg-secondary-400'}`} />
+                        {row.year}
+                      </td>
+                      <td className="p-2.5">
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${ts.bg}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${ts.dot}`} />
+                          {ts.label}
+                        </span>
+                      </td>
+                      <td className="p-2.5 text-right font-medium">{row.total.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-bold text-success">{row.resolved.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-medium text-primary-700">{row.inProgress.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-medium text-amber-600">{row.pending.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-extrabold text-primary-800">{row.resolutionRate}%</td>
+                      <td className="p-2.5 text-right font-bold text-secondary-800">{row.avgResolutionTime} days</td>
+                      <td className="p-2.5 text-secondary-600 text-[11px] truncate max-w-[140px]">
+                        {row.majorCategoryEmoji} {row.majorCategory}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mandatory Transparency & Neutrality Disclaimer */}
+        <div className="p-3 bg-secondary-50 rounded-xl border border-secondary-200 text-[11px] text-secondary-500 leading-relaxed">
+          <p className="font-semibold text-secondary-700 flex items-center gap-1.5 mb-1">
+            <Info size={13} className="text-secondary-500" />
+            Civic Transparency Notice:
+          </p>
+          <p>
+            Civic outcomes recorded during the selected period (2022–2026). Metrics represent aggregated public utility performance and administrative ward service logs for <strong>Pincode {pincode}</strong>.
+            This data reflects public utility and service operations and is not affiliated with or representative of any specific individual or political campaign.
+          </p>
         </div>
       </Card>
     </div>
   );
 }
 
-// ── 3. Civic Health Score ────────────────────────────────────────────────────
+// ── 3. Civic Health Score (CivicPulse Score) ──────────────────────────────────
 
-function CivicHealthScoreSection({ pincode, complaints }) {
+function CivicHealthScoreSection({ pincode, complaints, localityInfo, getComplaintVerification }) {
   const pinNum = parseInt(pincode, 10) || 400000;
-  const liveCount = complaints.length;
-  const liveResolved = complaints.filter(c => c.status === 'resolved').length;
-  const liveRate = liveCount > 0 ? (liveResolved / liveCount) * 100 : 72;
+  const pinOffset = pinNum % 17;
 
-  const baseline = 65 + (pinNum % 20);
-  const compositeScore = Math.round((baseline * 0.5) + (liveRate * 0.5));
-  const ratingText = getScoreText(compositeScore);
+  // 1. Resolution Rate Component (30% weight)
+  const totalCount = complaints.length;
+  const resolvedCount = complaints.filter(c => c.status === 'resolved').length;
+  const rawResolutionRate = totalCount > 0
+    ? (resolvedCount / totalCount) * 100
+    : (68 + (pinOffset % 18));
+  const resolutionRateScore = Math.min(100, Math.max(0, Math.round(rawResolutionRate)));
 
-  const subScores = [
-    { label: 'Service Responsiveness', score: Math.min(98, compositeScore + 4), color: 'text-primary-600', fill: '#2563EB' },
-    { label: 'Resolution Efficiency', score: Math.min(95, compositeScore - 2), color: 'text-success', fill: '#16A34A' },
-    { label: 'Citizen Satisfaction', score: Math.min(96, compositeScore + 1), color: 'text-secondary-700', fill: '#4B5563' },
+  // 2. Response Speed Component (20% weight)
+  // Faster resolution turnaround -> higher score (0-100)
+  // Baseline demo days: 4 to 12 days; 3 days = 95, 14 days = 45
+  const avgDaysEstimate = Math.max(3, 11 - (pinOffset * 0.45));
+  const rawResponseSpeed = Math.max(30, Math.min(98, Math.round(100 - (avgDaysEstimate * 4.5))));
+  const responseSpeedScore = rawResponseSpeed;
+
+  // 3. Pending Issue Reduction Component (20% weight)
+  const pendingCount = complaints.filter(c => c.status !== 'resolved' && c.status !== 'in_progress').length;
+  const pendingRatio = totalCount > 0 ? (pendingCount / totalCount) : 0.22;
+  const rawPendingReduction = Math.max(35, Math.min(98, Math.round((1 - pendingRatio) * 92 + (pinOffset % 6))));
+  const pendingReductionScore = rawPendingReduction;
+
+  // 4. High-Priority Resolution Component (15% weight)
+  const highPriorityItems = complaints.filter(c => c.priority === 'urgent' || c.priority === 'high');
+  const highPriorityResolved = highPriorityItems.filter(c => c.status === 'resolved').length;
+  const rawHighPriority = highPriorityItems.length > 0
+    ? (highPriorityResolved / highPriorityItems.length) * 100
+    : (72 + (pinOffset % 16));
+  const highPriorityScore = Math.min(100, Math.max(30, Math.round(rawHighPriority)));
+
+  // 5. Citizen Status Confirmation Component (15% weight)
+  let liveConfirmedVotes = 0;
+  let liveTotalVotes = 0;
+  if (getComplaintVerification) {
+    complaints.forEach((c) => {
+      const v = getComplaintVerification(c._id);
+      if (v) {
+        liveConfirmedVotes += (v.confirmedCount || 0);
+        liveTotalVotes += (v.totalCount || 0);
+      }
+    });
+  }
+  const rawCitizenConfirmation = liveTotalVotes > 0
+    ? (liveConfirmedVotes / liveTotalVotes) * 100
+    : (78 + (pinOffset % 15));
+  const citizenConfirmationScore = Math.min(100, Math.max(35, Math.round(rawCitizenConfirmation)));
+
+  // Calculate Weighted CivicPulse Score
+  // Weights: 30%, 20%, 20%, 15%, 15%
+  const civicPulseScore = Math.round(
+    (resolutionRateScore * 0.30) +
+    (responseSpeedScore * 0.20) +
+    (pendingReductionScore * 0.20) +
+    (highPriorityScore * 0.15) +
+    (citizenConfirmationScore * 0.15)
+  );
+
+  const components = [
+    {
+      key: 'resolutionRate',
+      name: 'Resolution Rate',
+      weight: 30,
+      score: resolutionRateScore,
+      description: 'Proportion of lodged civic issues successfully resolved',
+      color: '#16A34A',
+      bgColor: 'bg-green-500',
+      tagColor: 'text-green-700 bg-green-50 border-green-200',
+    },
+    {
+      key: 'responseSpeed',
+      name: 'Response Speed',
+      weight: 20,
+      score: responseSpeedScore,
+      description: 'Average turnaround duration from ticket lodging to closure',
+      color: '#2563EB',
+      bgColor: 'bg-primary-600',
+      tagColor: 'text-primary-700 bg-primary-50 border-primary-200',
+    },
+    {
+      key: 'pendingReduction',
+      name: 'Pending Issue Reduction',
+      weight: 20,
+      score: pendingReductionScore,
+      description: 'Backlog control and active mitigation of unaddressed complaints',
+      color: '#8B5CF6',
+      bgColor: 'bg-purple-600',
+      tagColor: 'text-purple-700 bg-purple-50 border-purple-200',
+    },
+    {
+      key: 'highPriority',
+      name: 'High-Priority Resolution',
+      weight: 15,
+      score: highPriorityScore,
+      description: 'Turnaround efficiency on safety, hazardous & urgent reports',
+      color: '#D97706',
+      bgColor: 'bg-amber-500',
+      tagColor: 'text-amber-700 bg-amber-50 border-amber-200',
+    },
+    {
+      key: 'citizenConfirmation',
+      name: 'Citizen Status Confirmation',
+      weight: 15,
+      score: citizenConfirmationScore,
+      description: 'Community verification validating actual on-ground resolution',
+      color: '#0D9488',
+      bgColor: 'bg-teal-600',
+      tagColor: 'text-teal-700 bg-teal-50 border-teal-200',
+    },
   ];
+
+  // SVG Gauge calculations
+  // Radius = 54, Circumference = 2 * PI * 54 ≈ 339.29
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (civicPulseScore / 100) * circumference;
+
+  const scoreTier = civicPulseScore >= 80
+    ? { text: 'Optimal Civic Health', color: 'text-success', ringColor: '#16A34A', bgBadge: 'bg-green-50 text-green-700 border-green-200' }
+    : civicPulseScore >= 65
+    ? { text: 'Good Civic Health', color: 'text-primary-700', ringColor: '#2563EB', bgBadge: 'bg-blue-50 text-primary-700 border-blue-200' }
+    : civicPulseScore >= 50
+    ? { text: 'Moderate Performance', color: 'text-amber-700', ringColor: '#D97706', bgBadge: 'bg-amber-50 text-amber-700 border-amber-200' }
+    : { text: 'Attention Required', color: 'text-error', ringColor: '#DC2626', bgBadge: 'bg-red-50 text-red-700 border-red-200' };
 
   return (
     <div>
-      <SectionHeader number="3" title="Civic Health Score" badge={<span className="text-[10px] text-secondary-400">Real-time composite</span>} />
-      <Card variant="flat" className="p-4">
-        <div className="flex flex-col sm:flex-row items-center gap-5">
-          <div className="flex flex-col items-center justify-center flex-shrink-0">
-            <div
-              className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${
-                compositeScore >= 75
-                  ? 'border-success bg-green-50'
-                  : compositeScore >= 60
-                  ? 'border-primary-500 bg-primary-50'
-                  : compositeScore >= 48
-                  ? 'border-warning bg-amber-50'
-                  : 'border-error bg-red-50'
-              }`}
-            >
-              <span className="text-3xl font-black text-secondary-900 leading-none">{compositeScore}</span>
-              <span className="text-[10px] font-bold text-secondary-400 mt-0.5">/ 100</span>
+      <SectionHeader
+        number="3"
+        title="Civic Health Score"
+        badge={
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary-50 border border-primary-200 text-[10px] font-bold text-primary-700">
+            <span>⚙️</span>
+            <span>Prototype Analytical Metric</span>
+          </span>
+        }
+      />
+
+      <Card variant="flat" className="p-4 sm:p-5 space-y-5">
+        {/* Main Gauge & Overview Banner */}
+        <div className="flex flex-col md:flex-row items-center gap-6 p-4 bg-secondary-50/60 rounded-2xl border border-secondary-200">
+          {/* Radial Circular Gauge Meter */}
+          <div className="relative flex flex-col items-center justify-center flex-shrink-0">
+            <div className="relative w-36 h-36 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 128 128">
+                {/* Background Track Circle */}
+                <circle
+                  cx="64"
+                  cy="64"
+                  r={radius}
+                  stroke="#E5E7EB"
+                  strokeWidth="10"
+                  fill="transparent"
+                />
+                {/* Foreground Animated Score Ring */}
+                <circle
+                  cx="64"
+                  cy="64"
+                  r={radius}
+                  stroke={scoreTier.ringColor}
+                  strokeWidth="10"
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+
+              {/* Inside Gauge Center Text */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-3xl font-black text-secondary-900 tracking-tight leading-none">
+                  {civicPulseScore}
+                </span>
+                <span className="text-[11px] font-bold text-secondary-400 mt-0.5">
+                  / 100
+                </span>
+              </div>
             </div>
-            <span className={`mt-2 px-2.5 py-0.5 rounded-full text-xs font-bold ${getScoreBadgeColor(compositeScore)}`}>
-              {ratingText}
+
+            <span className={`mt-2 px-2.5 py-0.5 rounded-full text-xs font-bold border ${scoreTier.bgBadge}`}>
+              {scoreTier.text}
             </span>
           </div>
 
-          <div className="flex-1 w-full space-y-2.5">
+          {/* Score Header & Description */}
+          <div className="flex-1 space-y-2 text-center md:text-left">
             <div>
-              <p className="text-xs font-bold text-secondary-800">Civic Health Evaluation</p>
-              <p className="text-[11px] text-secondary-500">
-                Aggregated performance score for <strong>Selected Locality {pincode}</strong> combining live resolution records and verified service benchmarks.
+              <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
+                <h3 className="text-lg font-black text-secondary-900 tracking-tight">
+                  CivicPulse Score
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-secondary-200/70 text-secondary-700 font-bold text-[10px] uppercase tracking-wider">
+                  Prototype Analytical Metric
+                </span>
+              </div>
+              <p className="text-xs text-secondary-500 mt-1">
+                Composite evaluation computed for <strong>Pincode {pincode}</strong> ({localityInfo?.name || 'Selected Area'}) based on weighted civic service indicators.
               </p>
             </div>
 
-            <div className="space-y-2 pt-1">
-              {subScores.map((sub) => (
-                <div key={sub.label}>
-                  <div className="flex justify-between text-[11px] font-semibold mb-1">
-                    <span className="text-secondary-600">{sub.label}</span>
-                    <span className={sub.color}>{sub.score}%</span>
+            {/* Quick summary chips */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
+              <span className="text-[11px] font-semibold text-secondary-600 bg-surface px-2.5 py-1 rounded-lg border border-secondary-200">
+                5 Weighted Dimensions
+              </span>
+              <span className="text-[11px] font-semibold text-secondary-600 bg-surface px-2.5 py-1 rounded-lg border border-secondary-200">
+                Normalized 0–100 Scale
+              </span>
+              <span className="text-[11px] font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-lg border border-primary-100">
+                Dynamic Real-Time Update
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 5 Component Breakdown Cards */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-secondary-900">
+              Score Component Breakdown (Weighted Matrix)
+            </h4>
+            <span className="text-[11px] text-secondary-400">
+              Total Weight: 100%
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {components.map((comp) => (
+              <div
+                key={comp.key}
+                className="p-3 bg-surface rounded-xl border border-secondary-200 hover:border-primary-300 transition-all space-y-1.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: comp.color }} />
+                    <span className="text-xs font-bold text-secondary-800 truncate">
+                      {comp.name}
+                    </span>
+                    <span className="text-[10px] font-semibold text-secondary-400 hidden sm:inline">
+                      ({comp.weight}% Weight)
+                    </span>
                   </div>
-                  <div className="w-full bg-secondary-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="h-1.5 rounded-full transition-all duration-500"
-                      style={{ width: `${sub.score}%`, backgroundColor: sub.fill }}
-                    />
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded border ${comp.tagColor}`}>
+                      {comp.weight}% wt
+                    </span>
+                    <span className="text-xs font-black text-secondary-900 min-w-[45px] text-right">
+                      {comp.score} / 100
+                    </span>
                   </div>
                 </div>
-              ))}
+
+                {/* Progress Meter Bar */}
+                <div className="w-full bg-secondary-100 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-2 rounded-full transition-all duration-700"
+                    style={{
+                      width: `${comp.score}%`,
+                      backgroundColor: comp.color,
+                    }}
+                  />
+                </div>
+
+                {/* Description line */}
+                <p className="text-[10px] text-secondary-400">
+                  {comp.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Mandatory Explanation Disclaimer Box */}
+        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed">
+          <div className="flex items-start gap-2">
+            <Info size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-900 mb-0.5">Methodology & Transparency Notice:</p>
+              <p className="text-amber-800 text-[11px]">
+                "CivicPulse Score is a prototype analytical metric based on complaint and community-verification data. It is not an official government rating."
+              </p>
+              <p className="text-amber-700 text-[10px] mt-1">
+                Scores reflect automated algorithmic aggregation of locality civic complaints and community verification votes. No individual political affiliation or official municipal endorsement is implied.
+              </p>
             </div>
           </div>
         </div>
@@ -1138,7 +1924,12 @@ export default function CivicInsights() {
         <div className="space-y-6">
           <CurrentSnapshotSection complaints={localityComplaints} pincode={selectedPincode} localityInfo={localityInfo} getComplaintVerification={getComplaintVerification} />
           <FiveYearRecordSection pincode={selectedPincode} localityInfo={localityInfo} />
-          <CivicHealthScoreSection pincode={selectedPincode} complaints={localityComplaints} />
+          <CivicHealthScoreSection
+            pincode={selectedPincode}
+            complaints={localityComplaints}
+            localityInfo={localityInfo}
+            getComplaintVerification={getComplaintVerification}
+          />
           <ServicePerformanceSection pincode={selectedPincode} complaints={localityComplaints} />
           <CommunityPrioritiesSection complaints={localityComplaints} />
           <CivicHeatmapSection pincode={selectedPincode} localityInfo={localityInfo} />
