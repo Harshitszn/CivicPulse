@@ -33,6 +33,7 @@ import {
 import { usePincode } from '../../context/PincodeContext';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import { getHistoricalDataForPincode, PROTOTYPE_DATA_LABEL } from '../../data/civicInsightsHistoricalData';
 
 // ── Locality & Demo Pincodes Metadata ─────────────────────────────────────────
 
@@ -74,120 +75,7 @@ export const SERVICE_CATEGORIES = [
 ];
 
 export function generate5YearHistory(pincode) {
-  const pinNum = parseInt(pincode, 10) || 400000;
-  const pinOffset = (pinNum % 19);
-
-  const majorCategoriesByYear = [
-    { year: '2022', majorCategory: 'Roads & Potholes', emoji: '🛣️', share: '36%' },
-    { year: '2023', majorCategory: 'Water Supply', emoji: '💧', share: '32%' },
-    { year: '2024', majorCategory: 'Drainage & Stormwater', emoji: '🌊', share: '29%' },
-    { year: '2025', majorCategory: 'Sanitation & Waste', emoji: '🗑️', share: '34%' },
-    { year: '2026', majorCategory: 'Roads & Potholes', emoji: '🛣️', share: '31%' },
-  ];
-
-  // 5-Year Historical civic record: 2022 to 2026
-  const yearConfigs = [
-    { year: '2022', baseTotal: 410 + pinOffset * 9,  baseRate: 53 + (pinNum % 8),  avgDays: 14.8 - (pinNum % 3) * 0.4 },
-    { year: '2023', baseTotal: 470 + pinOffset * 10, baseRate: 61 + (pinNum % 9),  avgDays: 12.3 - (pinNum % 3) * 0.4 },
-    { year: '2024', baseTotal: 530 + pinOffset * 11, baseRate: 69 + (pinNum % 10), avgDays: 9.6  - (pinNum % 3) * 0.3 },
-    { year: '2025', baseTotal: 585 + pinOffset * 12, baseRate: 77 + (pinNum % 9),  avgDays: 7.4  - (pinNum % 3) * 0.3 },
-    { year: '2026', baseTotal: 630 + pinOffset * 13, baseRate: 84 + (pinNum % 7),  avgDays: 5.6  - (pinNum % 3) * 0.2 },
-  ];
-
-  const raw = yearConfigs.map((item, idx) => {
-    const total = item.baseTotal;
-    const rate = Math.min(96, Math.max(48, item.baseRate));
-    const resolved = Math.round(total * (rate / 100));
-    const unresolved = total - resolved;
-    const inProgress = Math.max(1, Math.round(unresolved * 0.62));
-    const pending = Math.max(0, unresolved - inProgress);
-    const avgResolutionTime = Number(Math.max(2.5, item.avgDays).toFixed(1));
-    const cat = majorCategoriesByYear[idx];
-
-    return {
-      year: item.year,
-      total,
-      resolved,
-      inProgress,
-      pending,
-      resolutionRate: rate,
-      rate,
-      avgResolutionTime,
-      majorCategory: cat.majorCategory,
-      majorCategoryEmoji: cat.emoji,
-      majorCategoryShare: cat.share,
-    };
-  });
-
-  // Calculate year-over-year neutral outcome descriptors
-  return raw.map((item, idx) => {
-    if (idx === 0) {
-      return {
-        ...item,
-        outcomeTrend: 'stable',
-        outcomeLabel: 'Baseline Year',
-        volumeDiff: 0,
-        rateDiff: 0,
-        timeDiff: 0,
-        neutralSummary: [
-          'Initial observation year for historical recording.',
-          `Major service category: ${item.majorCategory} (${item.majorCategoryShare} of local reports).`,
-          `Resolution rate recorded at ${item.resolutionRate}%.`,
-          `Average resolution time recorded at ${item.avgResolutionTime} days.`,
-        ],
-      };
-    }
-
-    const prev = raw[idx - 1];
-    const volumeDiff = item.total - prev.total;
-    const rateDiff = item.resolutionRate - prev.resolutionRate;
-    const timeDiff = Number((item.avgResolutionTime - prev.avgResolutionTime).toFixed(1));
-
-    let outcomeTrend = 'stable';
-    if (rateDiff >= 3 || timeDiff <= -0.8) {
-      outcomeTrend = 'improving';
-    } else if (rateDiff <= -3 || timeDiff >= 0.8) {
-      outcomeTrend = 'declining';
-    }
-
-    const neutralSummary = [];
-
-    if (rateDiff > 0) {
-      neutralSummary.push(`Resolution rate increased from ${prev.resolutionRate}% to ${item.resolutionRate}% (+${rateDiff}% vs ${prev.year}).`);
-    } else if (rateDiff < 0) {
-      neutralSummary.push(`Resolution rate decreased from ${prev.resolutionRate}% to ${item.resolutionRate}% (${rateDiff}% vs ${prev.year}).`);
-    } else {
-      neutralSummary.push(`Resolution rate remained stable at ${item.resolutionRate}%.`);
-    }
-
-    if (timeDiff < 0) {
-      neutralSummary.push(`Average resolution time decreased from ${prev.avgResolutionTime}d to ${item.avgResolutionTime}d (${Math.abs(timeDiff)} days faster).`);
-    } else if (timeDiff > 0) {
-      neutralSummary.push(`Average resolution time increased from ${prev.avgResolutionTime}d to ${item.avgResolutionTime}d (+${timeDiff} days).`);
-    } else {
-      neutralSummary.push(`Average resolution time remained unchanged at ${item.avgResolutionTime} days.`);
-    }
-
-    if (volumeDiff > 0) {
-      neutralSummary.push(`Complaint volume increased from ${prev.total} to ${item.total} (+${volumeDiff} complaints).`);
-    } else if (volumeDiff < 0) {
-      neutralSummary.push(`Complaint volume decreased from ${prev.total} to ${item.total} (${volumeDiff} complaints).`);
-    } else {
-      neutralSummary.push(`Complaint volume remained unchanged.`);
-    }
-
-    neutralSummary.push(`Major service category: ${item.majorCategory} (${item.majorCategoryShare} of annual volume).`);
-
-    return {
-      ...item,
-      outcomeTrend,
-      outcomeLabel: outcomeTrend === 'improving' ? 'Improving' : outcomeTrend === 'declining' ? 'Declining' : 'Stable',
-      volumeDiff,
-      rateDiff,
-      timeDiff,
-      neutralSummary,
-    };
-  });
+  return getHistoricalDataForPincode(pincode);
 }
 
 export function getServiceScore(pincode, key, liveComplaints = []) {
@@ -1388,15 +1276,11 @@ function ServicesSection({ pincode, localityInfo, complaints }) {
   const pinNum = parseInt(pincode, 10) || 400000;
   const pinOffset = (pinNum % 19);
 
-  // Compute metrics for the 5 services
+  // Compute metrics for the 5 services using the prototype dataset
   const servicesData = useMemo(() => {
-    const serviceSeeds = {
-      roads:    { baseTotal: 42 + (pinOffset * 3), baseRate: 74 + (pinNum % 9),  avgDays: 4.8 },
-      garbage:  { baseTotal: 36 + (pinOffset * 2), baseRate: 82 + (pinNum % 7),  avgDays: 2.3 },
-      water:    { baseTotal: 29 + (pinOffset * 2), baseRate: 78 + (pinNum % 8),  avgDays: 3.5 },
-      drainage: { baseTotal: 25 + (pinOffset * 2), baseRate: 68 + (pinNum % 11), avgDays: 5.9 },
-      lighting: { baseTotal: 18 + (pinOffset * 1), baseRate: 89 + (pinNum % 6),  avgDays: 1.8 },
-    };
+    const historicalYears = getHistoricalDataForPincode(pincode);
+    const latestYearData = historicalYears.find(y => y.year === '2026') || historicalYears[historicalYears.length - 1];
+    const serviceBreakdown = latestYearData?.services || {};
 
     return CORE_MUNICIPAL_SERVICES.map((srv) => {
       // Find matching live complaints
@@ -1405,20 +1289,18 @@ function ServicesSection({ pincode, localityInfo, complaints }) {
         return srv.keywords.some(kw => catText.includes(kw));
       });
 
-      const seed = serviceSeeds[srv.key];
-      let total = seed.baseTotal;
-      let resolved = Math.round(total * (seed.baseRate / 100));
-      let pending = total - resolved;
-      let rate = seed.baseRate;
-      let avgTime = seed.avgDays;
+      const sData = serviceBreakdown[srv.key] || { total: 30, resolved: 22, pending: 8, resolutionRate: 73, avgResolutionTime: 4.5 };
+      let total = sData.total;
+      let resolved = sData.resolved;
+      let pending = sData.pending;
+      let rate = sData.resolutionRate;
+      let avgTime = sData.avgResolutionTime;
 
       if (matchingLive.length > 0) {
         const liveTotal = matchingLive.length;
         const liveResolved = matchingLive.filter(c => c.status === 'resolved').length;
-        const livePending = liveTotal - liveResolved;
         const liveRate = Math.round((liveResolved / liveTotal) * 100);
 
-        // Blend with seed for robust presentation
         total = Math.max(liveTotal, total);
         resolved = Math.max(liveResolved, Math.round(total * (liveRate > 0 ? liveRate : rate) / 100));
         pending = total - resolved;
@@ -1434,7 +1316,7 @@ function ServicesSection({ pincode, localityInfo, complaints }) {
         avgResolutionTime: Number(avgTime.toFixed(1)),
       };
     });
-  }, [pincode, pinNum, pinOffset, complaints]);
+  }, [pincode, complaints]);
 
   // Identify Key Highlights:
   // 1. Most Reported Service
