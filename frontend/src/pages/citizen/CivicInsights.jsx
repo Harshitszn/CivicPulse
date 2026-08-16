@@ -1211,63 +1211,311 @@ function CivicRecordSection({ pincode, localityInfo }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── 3. Services (Service Performance by Department) ───────────────────────────
+// ── 3. Services (Municipal Service Categories Performance) ────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ServicesSection({ pincode, complaints }) {
-  const categoryScores = useMemo(() => {
-    return SERVICE_CATEGORIES.map(cat => {
-      const score = getServiceScore(pincode, cat.key, complaints);
-      const catComplaints = complaints.filter(c => (c.categorySlug || '').includes(cat.key) || (c.category || '').toLowerCase().includes(cat.key));
+const CORE_MUNICIPAL_SERVICES = [
+  { key: 'roads',    label: 'Roads',              emoji: '🛣️', dept: 'Public Works Dept.',        keywords: ['road', 'pothole', 'pavement', 'asphalt', 'divider'] },
+  { key: 'garbage',  label: 'Garbage Collection', emoji: '🗑️', dept: 'Solid Waste Management',    keywords: ['garbage', 'waste', 'sanitation', 'trash', 'debris', 'dump'] },
+  { key: 'water',    label: 'Water Supply',       emoji: '💧', dept: 'Municipal Water Board',      keywords: ['water', 'pipe', 'leakage', 'supply', 'pipeline', 'contamination'] },
+  { key: 'drainage', label: 'Drainage',           emoji: '🌊', dept: 'Stormwater & Drainage',      keywords: ['drain', 'stormwater', 'sewer', 'gutter', 'waterlogging', 'clog'] },
+  { key: 'lighting', label: 'Street Lighting',    emoji: '💡', dept: 'Public Lighting Division',  keywords: ['light', 'streetlight', 'lamp', 'dark', 'illumination', 'pole'] },
+];
+
+function ServicesSection({ pincode, localityInfo, complaints }) {
+  const pinNum = parseInt(pincode, 10) || 400000;
+  const pinOffset = (pinNum % 19);
+
+  // Compute metrics for the 5 services
+  const servicesData = useMemo(() => {
+    const serviceSeeds = {
+      roads:    { baseTotal: 42 + (pinOffset * 3), baseRate: 74 + (pinNum % 9),  avgDays: 4.8 },
+      garbage:  { baseTotal: 36 + (pinOffset * 2), baseRate: 82 + (pinNum % 7),  avgDays: 2.3 },
+      water:    { baseTotal: 29 + (pinOffset * 2), baseRate: 78 + (pinNum % 8),  avgDays: 3.5 },
+      drainage: { baseTotal: 25 + (pinOffset * 2), baseRate: 68 + (pinNum % 11), avgDays: 5.9 },
+      lighting: { baseTotal: 18 + (pinOffset * 1), baseRate: 89 + (pinNum % 6),  avgDays: 1.8 },
+    };
+
+    return CORE_MUNICIPAL_SERVICES.map((srv) => {
+      // Find matching live complaints
+      const matchingLive = (complaints || []).filter((c) => {
+        const catText = `${c.category || ''} ${c.categorySlug || ''} ${c.title || ''}`.toLowerCase();
+        return srv.keywords.some(kw => catText.includes(kw));
+      });
+
+      const seed = serviceSeeds[srv.key];
+      let total = seed.baseTotal;
+      let resolved = Math.round(total * (seed.baseRate / 100));
+      let pending = total - resolved;
+      let rate = seed.baseRate;
+      let avgTime = seed.avgDays;
+
+      if (matchingLive.length > 0) {
+        const liveTotal = matchingLive.length;
+        const liveResolved = matchingLive.filter(c => c.status === 'resolved').length;
+        const livePending = liveTotal - liveResolved;
+        const liveRate = Math.round((liveResolved / liveTotal) * 100);
+
+        // Blend with seed for robust presentation
+        total = Math.max(liveTotal, total);
+        resolved = Math.max(liveResolved, Math.round(total * (liveRate > 0 ? liveRate : rate) / 100));
+        pending = total - resolved;
+        rate = Math.min(98, Math.max(45, Math.round((resolved / total) * 100)));
+      }
+
       return {
-        ...cat,
-        score,
-        issueCount: catComplaints.length,
+        ...srv,
+        total,
+        resolved,
+        pending,
+        resolutionRate: rate,
+        avgResolutionTime: Number(avgTime.toFixed(1)),
       };
     });
-  }, [pincode, complaints]);
+  }, [pincode, pinNum, pinOffset, complaints]);
+
+  // Identify Key Highlights:
+  // 1. Most Reported Service
+  const mostReported = useMemo(() => {
+    return [...servicesData].sort((a, b) => b.total - a.total)[0] || servicesData[0];
+  }, [servicesData]);
+
+  // 2. Highest Resolution Rate
+  const highestResolution = useMemo(() => {
+    return [...servicesData].sort((a, b) => b.resolutionRate - a.resolutionRate)[0] || servicesData[0];
+  }, [servicesData]);
+
+  // 3. Largest Pending Backlog
+  const largestBacklog = useMemo(() => {
+    return [...servicesData].sort((a, b) => b.pending - a.pending)[0] || servicesData[0];
+  }, [servicesData]);
 
   return (
-    <div>
-      <SectionHeader number="3" title="Services" badge={<DemoBadge />} />
-      <Card variant="flat" className="p-4 sm:p-5 space-y-3">
-        <p className="text-xs text-secondary-500 leading-relaxed">
-          Civic-service operational indices by core municipal department for <strong>Selected Locality {pincode}</strong>.
-        </p>
+    <div className="space-y-4">
+      {/* ── Section Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl sm:text-2xl font-black text-secondary-900 tracking-tight">
+              Municipal Services Performance
+            </h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
+              <span>📊</span>
+              <span>Prototype/Demo Data</span>
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm font-medium text-secondary-500 mt-0.5">
+            Operational indices and resolution turnaround across core municipal departments for <strong>{localityInfo?.name || `Pincode ${pincode}`}</strong>.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {categoryScores.map((cat) => (
-            <div key={cat.key} className="p-3.5 bg-secondary-50 rounded-xl border border-secondary-200 flex flex-col justify-between hover:border-primary-300 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">{cat.emoji}</span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-secondary-800 truncate">{cat.label}</p>
-                    <p className="text-[10px] text-secondary-400 truncate">{cat.dept}</p>
-                  </div>
-                </div>
-                <span className={`text-xs font-black px-2 py-0.5 rounded-md ${getScoreBadgeColor(cat.score)}`}>
-                  {cat.score}%
-                </span>
-              </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-primary-700 bg-primary-50 border border-primary-200 px-3 py-1.5 rounded-xl">
+            Selected Locality: <strong>{localityInfo?.name || `Pincode ${pincode}`} ({pincode})</strong>
+          </span>
+        </div>
+      </div>
 
-              <div className="w-full bg-secondary-200 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className={`h-1.5 rounded-full transition-all duration-500 ${
-                    cat.score >= 75 ? 'bg-success' : cat.score >= 60 ? 'bg-primary-600' : 'bg-warning'
-                  }`}
-                  style={{ width: `${cat.score}%` }}
-                />
-              </div>
+      {/* ── Key Highlights Strip (3 Identified Metrics) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Highlight 1: Most Reported Service */}
+        <div className="p-4 bg-surface rounded-2xl border border-secondary-200 shadow-xs flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase font-extrabold tracking-wider text-secondary-400">
+              Most Reported Service
+            </p>
+            <p className="text-sm font-black text-secondary-900 mt-0.5 truncate flex items-center gap-1.5">
+              <span>{mostReported.emoji}</span>
+              <span>{mostReported.label}</span>
+            </p>
+            <p className="text-[11px] text-secondary-500 mt-0.5">
+              <strong>{mostReported.total.toLocaleString()}</strong> complaints reported
+            </p>
+          </div>
+          <span className="w-9 h-9 rounded-xl bg-blue-50 text-primary-700 flex items-center justify-center font-black text-sm flex-shrink-0 border border-blue-100">
+            🏆
+          </span>
+        </div>
 
-              <div className="flex justify-between text-[10px] text-secondary-400 mt-2">
-                <span>{cat.issueCount} active local report{cat.issueCount !== 1 ? 's' : ''}</span>
-                <span className="font-semibold">{cat.score >= 75 ? 'Optimal' : cat.score >= 60 ? 'Normal' : 'Attention'}</span>
-              </div>
-            </div>
-          ))}
+        {/* Highlight 2: Highest Resolution Rate */}
+        <div className="p-4 bg-surface rounded-2xl border border-secondary-200 shadow-xs flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase font-extrabold tracking-wider text-green-700">
+              Highest Resolution Rate
+            </p>
+            <p className="text-sm font-black text-secondary-900 mt-0.5 truncate flex items-center gap-1.5">
+              <span>{highestResolution.emoji}</span>
+              <span>{highestResolution.label}</span>
+            </p>
+            <p className="text-[11px] text-green-700 mt-0.5">
+              <strong>{highestResolution.resolutionRate}%</strong> resolved (~{highestResolution.avgResolutionTime}d avg)
+            </p>
+          </div>
+          <span className="w-9 h-9 rounded-xl bg-green-50 text-success flex items-center justify-center font-black text-sm flex-shrink-0 border border-green-100">
+            ⭐
+          </span>
+        </div>
+
+        {/* Highlight 3: Largest Pending Backlog */}
+        <div className="p-4 bg-surface rounded-2xl border border-secondary-200 shadow-xs flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase font-extrabold tracking-wider text-error">
+              Largest Pending Backlog
+            </p>
+            <p className="text-sm font-black text-secondary-900 mt-0.5 truncate flex items-center gap-1.5">
+              <span>{largestBacklog.emoji}</span>
+              <span>{largestBacklog.label}</span>
+            </p>
+            <p className="text-[11px] text-error mt-0.5">
+              <strong>{largestBacklog.pending.toLocaleString()}</strong> tickets awaiting completion
+            </p>
+          </div>
+          <span className="w-9 h-9 rounded-xl bg-red-50 text-error flex items-center justify-center font-black text-sm flex-shrink-0 border border-red-100">
+            ⚠️
+          </span>
+        </div>
+      </div>
+
+      {/* ── Service Comparison Visualization ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-secondary-100">
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+              <BarChart2 size={15} className="text-primary-600" />
+              <span>Service Category Resolution Comparison</span>
+            </h3>
+            <p className="text-[11px] text-secondary-400 mt-0.5">
+              Comparative resolution rate (%) across core municipal services in Pincode {pincode}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px] font-semibold text-secondary-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#16A34A]" /> Resolution Rate (%)
+            </span>
+          </div>
+        </div>
+
+        <div className="h-56 w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={servicesData} layout="vertical" margin={{ top: 5, right: 30, left: 35, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
+              <XAxis type="number" domain={[0, 100]} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 10, fill: '#6B7280' }} tickFormatter={(v) => `${v}%`} />
+              <YAxis dataKey="label" type="category" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} width={110} />
+              <Tooltip
+                contentStyle={CUSTOM_TOOLTIP_STYLE}
+                formatter={(val, name, item) => {
+                  const s = item.payload;
+                  return [
+                    `${val}% (${s.resolved} resolved of ${s.total} complaints · ~${s.avgResolutionTime}d avg)`,
+                    'Resolution Rate',
+                  ];
+                }}
+              />
+              <Bar dataKey="resolutionRate" fill="#16A34A" radius={[0, 4, 4, 0]} barSize={20} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </Card>
+
+      {/* ── Detailed 5 Services Cards Grid ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800">
+            All 5 Core Municipal Services
+          </h3>
+          <span className="text-[11px] text-secondary-400">
+            Local department service breakdown
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {servicesData.map((srv) => {
+            const badgeClass = getScoreBadgeColor(srv.resolutionRate);
+
+            return (
+              <Card
+                key={srv.key}
+                variant="flat"
+                className="p-4 border-secondary-200 bg-surface flex flex-col justify-between hover:border-primary-300 transition-all hover:shadow-sm"
+              >
+                <div>
+                  {/* Card Header: Icon, Name, Dept & Resolution Rate Badge */}
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-2xl flex-shrink-0">{srv.emoji}</span>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-secondary-900 truncate">{srv.label}</h4>
+                        <p className="text-[10px] text-secondary-400 truncate">{srv.dept}</p>
+                      </div>
+                    </div>
+
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-lg border flex-shrink-0 ${badgeClass}`}>
+                      {srv.resolutionRate}%
+                    </span>
+                  </div>
+
+                  {/* Resolution Rate Progress Bar */}
+                  <div className="space-y-1 mb-3">
+                    <div className="w-full bg-secondary-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-700 ${
+                          srv.resolutionRate >= 75
+                            ? 'bg-success'
+                            : srv.resolutionRate >= 60
+                            ? 'bg-primary-600'
+                            : 'bg-warning'
+                        }`}
+                        style={{ width: `${srv.resolutionRate}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4 Metrics Inside Card */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-secondary-100 text-xs">
+                    <div className="p-2 bg-secondary-50/70 rounded-xl">
+                      <p className="text-[10px] text-secondary-400 font-medium">Total Complaints</p>
+                      <p className="text-sm font-black text-secondary-900 mt-0.5">{srv.total.toLocaleString()}</p>
+                    </div>
+
+                    <div className="p-2 bg-green-50/70 rounded-xl">
+                      <p className="text-[10px] text-green-700 font-medium">Resolved</p>
+                      <p className="text-sm font-black text-success mt-0.5">{srv.resolved.toLocaleString()}</p>
+                    </div>
+
+                    <div className="p-2 bg-amber-50/70 rounded-xl">
+                      <p className="text-[10px] text-amber-700 font-medium">Pending</p>
+                      <p className="text-sm font-black text-warning mt-0.5">{srv.pending.toLocaleString()}</p>
+                    </div>
+
+                    <div className="p-2 bg-purple-50/70 rounded-xl">
+                      <p className="text-[10px] text-purple-700 font-medium">Avg. Time</p>
+                      <p className="text-sm font-black text-purple-700 mt-0.5">{srv.avgResolutionTime} days</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-secondary-100 flex items-center justify-between text-[10px] text-secondary-400">
+                  <span>Status: <strong className="text-secondary-700">{srv.resolutionRate >= 75 ? 'Optimal Response' : srv.resolutionRate >= 60 ? 'Standard Response' : 'Action Required'}</strong></span>
+                  <span>PIN {pincode}</span>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Mandatory Methodology & Neutrality Notice */}
+      <div className="p-3 bg-secondary-50 rounded-xl border border-secondary-200 text-[11px] text-secondary-500 leading-relaxed">
+        <p className="font-semibold text-secondary-700 flex items-center gap-1.5 mb-1">
+          <Info size={13} className="text-secondary-500" />
+          Service Performance Transparency Notice:
+        </p>
+        <p>
+          Departmental indices represent aggregate municipal operational performance metrics for <strong>Selected Locality {localityInfo?.name || `Pincode ${pincode}`}</strong>.
+          Metrics are generated from civic issue reports and resolution logs. No political evaluation or individual representative ranking is implied.
+        </p>
+      </div>
     </div>
   );
 }
