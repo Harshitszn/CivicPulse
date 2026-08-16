@@ -16,6 +16,8 @@ import {
   Layers,
   AlertTriangle,
   ChevronRight,
+  ChevronDown,
+  HelpCircle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -1244,16 +1246,86 @@ function CivicRecordSection({ pincode, localityInfo }) {
           </div>
         </div>
 
-        {/* Mandatory Transparency & Neutrality Disclaimer */}
-        <div className="p-3 bg-secondary-50 rounded-xl border border-secondary-200 text-[11px] text-secondary-500 leading-relaxed">
-          <p className="font-semibold text-secondary-700 flex items-center gap-1.5 mb-1">
-            <Info size={13} className="text-secondary-500" />
-            Civic Transparency Notice:
-          </p>
-          <p>
-            Civic outcomes recorded during the selected period (2022–2026). Metrics represent aggregated public utility performance and administrative ward service logs for <strong>Pincode {pincode}</strong>.
-            This data reflects public utility and service operations and is not affiliated with or representative of any specific individual or political campaign. Prototype estimations are shown until verified municipal audits are connected.
-          </p>
+        {/* ── About This Data Section (Collapsible) ── */}
+        <div className="pt-2 border-t border-secondary-200">
+          <button
+            type="button"
+            onClick={() => setIsAboutOpen(!isAboutOpen)}
+            className="w-full flex items-center justify-between p-3 bg-secondary-50 hover:bg-secondary-100/80 rounded-xl border border-secondary-200 transition-colors text-left group"
+          >
+            <div className="flex items-center gap-2">
+              <HelpCircle size={15} className="text-primary-600" />
+              <span className="text-xs font-extrabold text-secondary-900">
+                About This Data
+              </span>
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                Prototype Methodology
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-secondary-500 group-hover:text-secondary-800">
+              <span>{isAboutOpen ? 'Hide Methodology' : 'Show Methodology'}</span>
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${isAboutOpen ? 'rotate-180' : ''}`}
+              />
+            </div>
+          </button>
+
+          {isAboutOpen && (
+            <div className="mt-2.5 p-4 bg-surface rounded-xl border border-secondary-200 text-xs space-y-3 animate-fade-in text-secondary-700 leading-relaxed">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-2.5 bg-secondary-50/70 rounded-lg space-y-1">
+                  <p className="font-bold text-secondary-900 text-[11px]">📍 What Pincode Represents</p>
+                  <p className="text-[11px] text-secondary-600">
+                    The 6-digit postal code (e.g. <strong>{pincode}</strong>) maps to the local municipal administrative ward boundary ({localityInfo?.name || `Zone ${pincode}`}).
+                  </p>
+                </div>
+
+                <div className="p-2.5 bg-secondary-50/70 rounded-lg space-y-1">
+                  <p className="font-bold text-secondary-900 text-[11px]">📊 How Complaint Counts are Calculated</p>
+                  <p className="text-[11px] text-secondary-600">
+                    Total aggregated volume of public utility and infrastructure issues logged within the pincode perimeter per calendar year.
+                  </p>
+                </div>
+
+                <div className="p-2.5 bg-secondary-50/70 rounded-lg space-y-1">
+                  <p className="font-bold text-secondary-900 text-[11px]">📈 How Resolution Rate is Calculated</p>
+                  <p className="text-[11px] text-secondary-600">
+                    Calculated as <code>(Resolved Complaints / Total Complaints) × 100</code> for each annual civic period.
+                  </p>
+                </div>
+
+                <div className="p-2.5 bg-secondary-50/70 rounded-lg space-y-1">
+                  <p className="font-bold text-secondary-900 text-[11px]">⏱️ How Average Resolution Time is Calculated</p>
+                  <p className="text-[11px] text-secondary-600">
+                    The mean turnaround duration in days between ticket submission and verified municipal resolution closure.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-secondary-50/70 rounded-lg space-y-1">
+                <p className="font-bold text-secondary-900 text-[11px]">⭐ How CivicPulse Score is Calculated</p>
+                <p className="text-[11px] text-secondary-600">
+                  A composite weighted metric (0–100): Resolution Rate (30%), Response Speed (20%), Pending Issue Reduction (20%), High-Priority Resolution (15%), and Citizen Status Confirmation (15%).
+                </p>
+              </div>
+
+              {/* Exact required statements */}
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 space-y-1.5 font-medium">
+                <p className="flex items-center gap-1.5 font-bold text-amber-950">
+                  <Info size={13} className="text-amber-700" />
+                  College Prototype & Non-Partisan Notice:
+                </p>
+                <p>
+                  "Historical figures shown in this prototype are simulated for demonstration purposes and do not represent official municipal records."
+                </p>
+                <p>
+                  "CivicPulse presents locality-level civic outcomes and does not attribute individual outcomes to any specific elected representative."
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>
