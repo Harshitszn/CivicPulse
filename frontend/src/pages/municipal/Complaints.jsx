@@ -57,7 +57,7 @@ export default function MunicipalComplaints() {
   }, [allComplaints, search, statusFilter, categoryFilter, pincodeFilter]);
 
   return (
-    <div className="animate-fade-in space-y-5 max-w-container mx-auto pb-12">
+    <div className="animate-fade-in space-y-5 w-full pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-secondary-200 rounded-xl p-5 shadow-card">
         <div>

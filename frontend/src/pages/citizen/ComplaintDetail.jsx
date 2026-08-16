@@ -103,7 +103,7 @@ export default function ComplaintDetail() {
   };
 
   return (
-    <div className="animate-fade-in max-w-2xl mx-auto pb-12">
+    <div className="animate-fade-in w-full max-w-4xl mx-auto pb-12">
       {/* Back Link */}
       <Link to="/feed" className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary-500 hover:text-primary-600 mb-4 no-underline transition-colors">
         <ArrowLeft size={14} />

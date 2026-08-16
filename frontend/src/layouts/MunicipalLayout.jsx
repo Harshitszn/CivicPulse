@@ -23,29 +23,47 @@ const PAGE_TITLES = {
  */
 function MunicipalLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
   const pageTitle =
     Object.entries(PAGE_TITLES).find(([path]) => location.pathname.startsWith(path))?.[1] ?? 'CivicPulse';
 
-  const sidebarMargin = collapsed ? 'ml-16' : 'ml-64';
-
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex overflow-x-hidden">
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-secondary-900/50 backdrop-blur-xs lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <MunicipalSidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+      <MunicipalSidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        mobileOpen={mobileOpen}
+        onCloseMobile={() => setMobileOpen(false)}
+      />
 
       {/* Right panel: header + content */}
-      <div className={`flex-1 flex flex-col transition-all duration-slow ${sidebarMargin}`}>
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-slow ${
+        collapsed ? 'lg:ml-16' : 'lg:ml-64'
+      }`}>
         {/* Header */}
-        <MunicipalHeader sidebarCollapsed={collapsed} pageTitle={pageTitle} />
+        <MunicipalHeader
+          sidebarCollapsed={collapsed}
+          onMenuToggle={() => setMobileOpen((prev) => !prev)}
+          pageTitle={pageTitle}
+        />
 
-        {/* Content */}
+        {/* Content Workspace */}
         <main
-          className="flex-1 mt-16 p-6 overflow-y-auto"
+          className="flex-1 mt-16 p-4 sm:p-6 lg:p-8 overflow-y-auto"
           id="municipal-main-content"
         >
-          <div className="max-w-container mx-auto">
+          <div className="w-full max-w-[1600px] mx-auto min-w-0">
             <Outlet />
           </div>
         </main>

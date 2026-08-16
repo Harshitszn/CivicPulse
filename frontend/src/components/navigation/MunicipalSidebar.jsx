@@ -15,13 +15,14 @@ const NAV_ITEMS = [
   { to: '/municipal/settings',    label: 'Settings',    icon: Settings,        id: 'mnav-settings'    },
 ];
 
-function MunicipalSidebar({ collapsed, onToggle }) {
+function MunicipalSidebar({ collapsed, onToggle, mobileOpen, onCloseMobile }) {
   return (
     <aside
       className={[
-        'fixed left-0 top-0 bottom-0 z-30 flex flex-col bg-white border-r border-secondary-200 shadow-card',
-        'transition-all duration-slow',
-        collapsed ? 'w-16' : 'w-64',
+        'fixed left-0 top-0 bottom-0 z-40 flex flex-col bg-white border-r border-secondary-200 shadow-card',
+        'transition-all duration-300 transform',
+        mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        collapsed ? 'w-64 lg:w-16' : 'w-64',
       ].join(' ')}
     >
       {/* Logo Container */}

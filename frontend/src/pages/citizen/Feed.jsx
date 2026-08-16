@@ -382,7 +382,7 @@ export default function Feed() {
   });
 
   return (
-    <div className="max-w-xl mx-auto pb-12 animate-fade-in">
+    <div className="w-full max-w-4xl mx-auto pb-12 animate-fade-in">
       {/* Feed Title & Subheader */}
       <div className="mb-4 flex items-center justify-between">
         <div>

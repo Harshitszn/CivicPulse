@@ -117,11 +117,11 @@ export default function MyComplaints() {
   }, [allUserComplaints]);
 
   return (
-    <div className="animate-fade-in max-w-2xl mx-auto pb-12">
+    <div className="animate-fade-in w-full max-w-4xl mx-auto pb-12">
       {/* Page Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-lg font-extrabold text-secondary-900">My Reported Issues</h1>
+          <h1 className="text-lg sm:text-xl font-extrabold text-secondary-900 tracking-tight">My Reported Issues</h1>
           <p className="text-xs text-secondary-500 mt-0.5">Track live progress of grievances filed by you</p>
         </div>
         <Link to="/report">
@@ -132,7 +132,7 @@ export default function MyComplaints() {
       </div>
 
       {/* Stats Overview Strip */}
-      <div className="grid grid-cols-4 gap-2 mb-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
         <button onClick={() => setFilter('all')} className="bg-secondary-50 border border-secondary-200 rounded-xl p-3 text-center hover:border-secondary-300 transition-colors">
           <p className="text-lg font-extrabold text-secondary-900">{stats.total}</p>
           <p className="text-[10px] font-semibold text-secondary-500 mt-0.5">Total Filed</p>

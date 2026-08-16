@@ -96,7 +96,7 @@ export default function Departments() {
   }, [deptStats, selectedDeptId]);
 
   return (
-    <div className="animate-fade-in space-y-6 max-w-container mx-auto pb-12">
+    <div className="animate-fade-in space-y-5 w-full pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-secondary-200 rounded-xl p-5 shadow-card">
         <div>
@@ -117,7 +117,7 @@ export default function Departments() {
       </div>
 
       {/* ── 5 Department Cards Grid ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
         {deptStats.map((dept) => {
           const isSelected = dept.id === selectedDeptId;
           return (

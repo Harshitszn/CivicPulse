@@ -36,18 +36,18 @@ export default function Profile() {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in w-full max-w-4xl mx-auto">
       {/* Profile header */}
-      <div className="flex items-center gap-4 mb-6 p-4 bg-surface border border-secondary-200 rounded-lg">
+      <div className="flex items-center gap-4 mb-6 p-4 sm:p-6 bg-surface border border-secondary-200 rounded-xl">
         <div className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
           <span className="text-white text-xl font-bold">{MOCK_USER.name.charAt(0)}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-bold text-secondary-900">{MOCK_USER.name}</h1>
-          <p className="text-xs text-secondary-400 flex items-center gap-1 mt-0.5">
-            <MapPin size={10} />{MOCK_USER.ward}, {MOCK_USER.city} — {MOCK_USER.pincode}
+          <h1 className="text-base sm:text-lg font-bold text-secondary-900">{MOCK_USER.name}</h1>
+          <p className="text-xs text-secondary-500 flex items-center gap-1 mt-0.5">
+            <MapPin size={11} className="text-primary-600" />{MOCK_USER.ward}, {MOCK_USER.city} — {MOCK_USER.pincode}
           </p>
-          <p className="text-[10px] text-secondary-300 mt-1">
+          <p className="text-[10px] text-secondary-400 mt-1">
             Member since {new Date(MOCK_USER.joinedAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
           </p>
         </div>
@@ -57,7 +57,7 @@ export default function Profile() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
         {[
           { label: 'Reported', value: MOCK_USER.stats.total,      color: 'text-secondary-700' },
           { label: 'Resolved', value: MOCK_USER.stats.resolved,   color: 'text-success'       },

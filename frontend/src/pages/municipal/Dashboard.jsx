@@ -178,7 +178,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="animate-fade-in space-y-6 max-w-container mx-auto pb-12">
+    <div className="animate-fade-in space-y-6 w-full pb-12">
       {/* Title & Operations Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-secondary-200 rounded-xl p-5 shadow-card">
         <div>
@@ -204,7 +204,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── 5 KPI Cards Grid ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {KPI_CARDS.map((kpi) => {
           const Icon = kpi.icon;
           return (

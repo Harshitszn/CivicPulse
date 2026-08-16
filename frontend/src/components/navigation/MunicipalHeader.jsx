@@ -15,9 +15,9 @@ function MunicipalHeader({ sidebarCollapsed, onMenuToggle, pageTitle = 'Dashboar
   return (
     <header
       className={[
-        'fixed top-0 right-0 z-20 flex items-center gap-4 px-6 h-16 bg-white border-b border-secondary-200 shadow-xs',
-        'transition-all duration-slow',
-        sidebarCollapsed ? 'left-16' : 'left-64',
+        'fixed top-0 right-0 left-0 z-20 flex items-center gap-3 sm:gap-4 px-4 sm:px-6 h-16 bg-white border-b border-secondary-200 shadow-xs',
+        'transition-all duration-300',
+        sidebarCollapsed ? 'lg:left-16' : 'lg:left-64',
       ].join(' ')}
     >
       {/* Mobile menu toggle */}

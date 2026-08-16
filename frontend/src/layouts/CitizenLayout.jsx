@@ -12,12 +12,12 @@ import ToastContainer from '../components/ui/ToastContainer';
  */
 function CitizenLayout() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col overflow-x-hidden">
       <CitizenNav />
 
-      {/* Main content — feed column */}
+      {/* Main content container — responsive layout for mobile, tablet, laptop & desktop */}
       <main
-        className="flex-1 w-full max-w-2xl mx-auto px-4 pt-4 pb-24 md:pb-6"
+        className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8 min-w-0"
         id="citizen-main-content"
       >
         <Outlet />
