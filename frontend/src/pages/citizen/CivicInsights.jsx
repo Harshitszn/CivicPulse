@@ -1005,86 +1005,100 @@ function CivicRecordSection({ pincode, localityInfo }) {
         </div>
       </Card>
 
-      {/* ── Year-by-Year Timeline Underneath ── */}
+      {/* ── Visual Civic Timeline (2022–2026) ── */}
       <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-4">
         <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
           <div className="flex items-center gap-2">
             <Clock size={15} className="text-primary-600" />
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800">
-              Year-by-Year Civic Timeline (2022–2026)
+              Civic Timeline (2022–2026)
             </h3>
           </div>
           <span className="text-[11px] text-secondary-400">
-            Click any year to highlight observations
+            Hover or click any year to inspect details
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
-          {historyData.map((item) => {
-            const isSelected = item.year === selectedYear;
-            const trendStyle = getTrendStyle(item.outcomeTrend);
+        {/* 5-Year Connected Timeline Track */}
+        <div className="relative pt-1">
+          {/* Subtle horizontal connector bar (desktop only) */}
+          <div className="hidden sm:block absolute top-[22px] inset-x-8 h-0.5 bg-secondary-200 -z-0" />
 
-            return (
-              <button
-                key={item.year}
-                type="button"
-                onClick={() => setSelectedYear(item.year)}
-                className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col justify-between group ${
-                  isSelected
-                    ? 'bg-primary-50/50 border-primary-500 shadow-md ring-2 ring-primary-500/20'
-                    : 'bg-surface border-secondary-200 hover:border-primary-300 hover:bg-secondary-50/50'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1 mb-2">
-                  <span className={`text-sm font-black ${isSelected ? 'text-primary-700' : 'text-secondary-900'}`}>
-                    {item.year}
-                  </span>
-                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${trendStyle.bg}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${trendStyle.dot}`} />
-                    {trendStyle.label}
-                  </span>
-                </div>
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 relative z-10">
+            {historyData.map((item) => {
+              const isSelected = item.year === selectedYear;
+              const trendStyle = getTrendStyle(item.outcomeTrend);
 
-                <div className="space-y-1.5 text-[11px]">
-                  <div className="flex justify-between items-center">
-                    <span className="text-secondary-400">Volume:</span>
-                    <span className="font-bold text-secondary-800">{item.total.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-secondary-400">Res. Rate:</span>
-                    <span className="font-extrabold text-success">{item.resolutionRate}%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-secondary-400">Avg. Time:</span>
-                    <span className="font-bold text-secondary-700">{item.avgResolutionTime}d</span>
-                  </div>
-                  <div className="pt-1 border-t border-secondary-100 mt-1">
-                    <p className="text-[10px] text-secondary-400 truncate">Top Category:</p>
-                    <p className="text-[10px] font-bold text-secondary-800 truncate flex items-center gap-1">
-                      <span>{item.majorCategoryEmoji}</span>
-                      <span>{item.majorCategory}</span>
-                    </p>
-                  </div>
-                </div>
-
-                {isSelected && (
-                  <div className="mt-2 text-center">
-                    <span className="text-[9px] font-extrabold uppercase text-primary-600 bg-primary-100/70 px-2 py-0.5 rounded-full">
-                      ● Selected
+              return (
+                <div
+                  key={item.year}
+                  onMouseEnter={() => setSelectedYear(item.year)}
+                  onClick={() => setSelectedYear(item.year)}
+                  className={`cursor-pointer text-left p-3 rounded-2xl border transition-all relative flex flex-col justify-between group ${
+                    isSelected
+                      ? 'bg-primary-50/60 border-primary-500 shadow-md ring-2 ring-primary-500/25 -translate-y-0.5'
+                      : 'bg-surface border-secondary-200 hover:border-primary-300 hover:bg-secondary-50/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-2">
+                    <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-colors ${
+                      isSelected
+                        ? 'bg-primary-600 text-white shadow-xs'
+                        : 'bg-secondary-100 text-secondary-800 group-hover:bg-primary-100 group-hover:text-primary-800'
+                    }`}>
+                      {item.year.slice(2)}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${trendStyle.bg}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${trendStyle.dot}`} />
+                      {trendStyle.label}
                     </span>
                   </div>
-                )}
-              </button>
-            );
-          })}
+
+                  <p className="text-xs font-black text-secondary-900 mb-1.5">
+                    Year {item.year}
+                  </p>
+
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between items-center text-secondary-600">
+                      <span className="text-[10px] text-secondary-400">Total:</span>
+                      <span className="font-bold text-secondary-800">{item.total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-secondary-600">
+                      <span className="text-[10px] text-secondary-400">Resolution:</span>
+                      <span className="font-extrabold text-success">{item.resolutionRate}%</span>
+                    </div>
+                    <div className="flex justify-between items-center text-secondary-600">
+                      <span className="text-[10px] text-secondary-400">Avg. Time:</span>
+                      <span className="font-bold text-secondary-700">{item.avgResolutionTime}d</span>
+                    </div>
+                  </div>
+
+                  {isSelected ? (
+                    <div className="mt-2 text-center pt-1 border-t border-primary-100">
+                      <span className="text-[9px] font-extrabold uppercase text-primary-700 bg-primary-100/70 px-2 py-0.5 rounded-full">
+                        ● Viewing
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-center pt-1 border-t border-secondary-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[9px] font-semibold text-secondary-400">
+                        Click to view
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
+        {/* Selected Year Details Box */}
         {activeYearData && (
-          <div className="p-3.5 bg-secondary-50/80 rounded-2xl border border-secondary-200">
+          <div className="p-3.5 bg-secondary-50/80 rounded-2xl border border-secondary-200 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-secondary-200">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-secondary-900">
-                  Year {activeYearData.year} Outcome Summary
+                  Year {activeYearData.year} Civic Observations
                 </span>
                 {(() => {
                   const ts = getTrendStyle(activeYearData.outcomeTrend);
@@ -1098,7 +1112,7 @@ function CivicRecordSection({ pincode, localityInfo }) {
               </div>
 
               <span className="text-[11px] text-secondary-600 font-medium">
-                {activeYearData.resolved.toLocaleString()} resolved / {activeYearData.total.toLocaleString()} total ({activeYearData.resolutionRate}% rate · {activeYearData.avgResolutionTime} days avg)
+                {activeYearData.resolved.toLocaleString()} resolved of {activeYearData.total.toLocaleString()} total ({activeYearData.resolutionRate}% rate · {activeYearData.avgResolutionTime} days average turnaround)
               </span>
             </div>
 
