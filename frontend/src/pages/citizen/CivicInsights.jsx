@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   BarChart2,
   MapPin,
@@ -205,51 +205,309 @@ const CUSTOM_TOOLTIP_STYLE = {
   boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
 };
 
+// ── Reusable KPI Card ─────────────────────────────────────────────────────────
+
+function KpiCard({
+  label, value, sub, icon: Icon, iconBg, iconColor,
+  valueColor = 'text-secondary-900', badge, tooltip,
+  trend, trendUp, isDemo = false,
+}) {
+  return (
+    <div className={`relative flex flex-col justify-between p-4 rounded-2xl border bg-surface transition-all hover:shadow-md hover:-translate-y-[1px] group ${isDemo ? 'border-amber-200 bg-amber-50/30' : 'border-secondary-200'}`}>
+      {/* Demo watermark */}
+      {isDemo && (
+        <span className="absolute top-2 right-2 text-[9px] font-extrabold uppercase tracking-wide text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+          Demo
+        </span>
+      )}
+
+      {/* Icon + label row */}
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+          <Icon size={16} className={iconColor} />
+        </div>
+        {badge && <div className="ml-2">{badge}</div>}
+      </div>
+
+      {/* Value */}
+      <div>
+        <p className={`text-2xl font-black leading-none ${valueColor}`}>{value}</p>
+        {sub && (
+          <p className="text-[11px] text-secondary-400 font-medium mt-0.5">{sub}</p>
+        )}
+        {trend !== undefined && (
+          <div className={`flex items-center gap-1 mt-1 text-[11px] font-semibold ${trendUp ? 'text-success' : 'text-error'}`}>
+            {trendUp ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            <span>{trend}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Label */}
+      <p className="text-xs font-semibold text-secondary-600 mt-2 leading-snug">{label}</p>
+
+      {/* Tooltip on hover */}
+      {tooltip && (
+        <div className="absolute inset-x-0 bottom-full mb-1.5 hidden group-hover:block z-10 px-3">
+          <div className="bg-secondary-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 text-center shadow-lg leading-snug">
+            {tooltip}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Resolution Rate Bar ────────────────────────────────────────────────────────
+
+function ResolutionRateBar({ rate, label = 'Resolution Rate' }) {
+  const color = rate >= 70 ? '#16A34A' : rate >= 50 ? '#2563EB' : rate >= 35 ? '#D97706' : '#DC2626';
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+        <span className="text-secondary-600">{label}</span>
+        <span style={{ color }} className="text-sm font-black">{rate}%</span>
+      </div>
+      <div className="w-full bg-secondary-100 rounded-full h-2.5 overflow-hidden">
+        <div
+          className="h-2.5 rounded-full transition-all duration-700"
+          style={{ width: `${Math.min(rate, 100)}%`, backgroundColor: color }}
+        />
+      </div>
+      <p className="text-[10px] text-secondary-400 mt-1">
+        {rate >= 70 ? '✓ Above civic benchmark' : rate >= 50 ? '→ At civic benchmark' : '⚠ Below civic benchmark'}
+      </p>
+    </div>
+  );
+}
+
+// ── Helper: parse estimatedResolution string → approximate days ───────────────
+
+function parseEstimatedDays(str) {
+  if (!str || str === 'Resolved') return null;
+  const match = str.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 // ── 1. Current Civic Snapshot ─────────────────────────────────────────────────
 
-function CurrentSnapshotSection({ complaints, pincode, localityInfo }) {
+function CurrentSnapshotSection({ complaints, pincode, localityInfo, getComplaintVerification }) {
   const total = complaints.length;
-  const resolved = complaints.filter(c => c.status === 'resolved').length;
-  const inProgress = complaints.filter(c => c.status === 'in_progress').length;
-  const urgent = complaints.filter(c => c.priority === 'urgent' || c.priority === 'high').length;
-  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 74;
 
-  const stats = [
-    { label: 'Total Reported',  value: total, icon: Activity, color: 'text-secondary-800', bg: 'bg-secondary-50 border-secondary-200' },
-    { label: 'Resolved',        value: resolved, icon: CheckCircle2, color: 'text-success', bg: 'bg-green-50 border-green-200' },
-    { label: 'In Progress',     value: inProgress, icon: Clock, color: 'text-warning', bg: 'bg-amber-50 border-amber-200' },
-    { label: 'Urgent / High',   value: urgent, icon: AlertTriangle, color: 'text-error', bg: 'bg-red-50 border-red-200' },
-  ];
+  // Core status counts
+  const resolved   = complaints.filter(c => c.status === 'resolved').length;
+  const inProgress = complaints.filter(c => c.status === 'in_progress').length;
+  // Pending = not resolved and not actively being worked (open / reported / verified / assigned)
+  const pending    = complaints.filter(c =>
+    !['resolved', 'in_progress'].includes(c.status)
+  ).length;
+  const highPriority = complaints.filter(c =>
+    c.priority === 'urgent' || c.priority === 'high'
+  ).length;
+
+  // Resolution Rate — live from data
+  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+  // Average Resolution Time
+  // Since there's no resolvedAt field, we approximate from estimatedResolution for resolved complaints.
+  // This is clearly labelled as a prototype estimate.
+  const resolvedComplaints = complaints.filter(c => c.status === 'resolved');
+  let avgResolutionDays = null;
+  let avgResolutionIsDemo = false;
+  if (resolvedComplaints.length > 0) {
+    const parsed = resolvedComplaints
+      .map(c => parseEstimatedDays(c.estimatedResolution))
+      .filter(d => d !== null);
+    if (parsed.length > 0) {
+      avgResolutionDays = Math.round(parsed.reduce((a, b) => a + b, 0) / parsed.length);
+      avgResolutionIsDemo = true; // derived from estimatedResolution, not a real timestamp
+    }
+  }
+  // If still no data, fall back to a pincode-seeded demo value
+  if (avgResolutionDays === null) {
+    const pinNum = parseInt(pincode, 10) || 400000;
+    avgResolutionDays = 3 + (pinNum % 5); // 3–7 days
+    avgResolutionIsDemo = true;
+  }
+
+  // Citizen Confirmation Rate — aggregate verifications across all locality complaints
+  // confirmedCount / (confirmedCount + notConfirmedCount) for complaints that have votes
+  let totalConfirmed = 0;
+  let totalVerificationVotes = 0;
+  let confirmationIsDemo = false;
+
+  if (getComplaintVerification && complaints.length > 0) {
+    complaints.forEach(c => {
+      const v = getComplaintVerification(c._id);
+      if (v && v.totalResponses > 0) {
+        totalConfirmed += v.confirmedCount;
+        totalVerificationVotes += v.totalResponses;
+      }
+    });
+  }
+
+  let citizenConfirmationRate = 0;
+  if (totalVerificationVotes > 0) {
+    citizenConfirmationRate = Math.round((totalConfirmed / totalVerificationVotes) * 100);
+  } else {
+    // No verifications in this locality — use demo fallback
+    const pinNum = parseInt(pincode, 10) || 400000;
+    citizenConfirmationRate = 78 + (pinNum % 14);
+    confirmationIsDemo = true;
+  }
+
+  // No data state
+  const isEmpty = total === 0;
 
   return (
     <div>
       <SectionHeader number="1" title="Current Civic Snapshot" badge={<LiveBadge />} />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {stats.map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className={`p-3.5 rounded-xl border ${bg} transition-all`}>
-            <div className="flex items-center justify-between">
-              <Icon size={16} className={color} />
-              <span className="text-[10px] font-semibold text-secondary-400">Locality</span>
-            </div>
-            <p className={`text-2xl font-extrabold mt-1.5 ${color}`}>{value}</p>
-            <p className="text-[11px] text-secondary-500 font-medium">{label}</p>
-          </div>
-        ))}
-      </div>
 
-      <div className="mt-3 p-3 bg-surface rounded-xl border border-secondary-200 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-secondary-500">Live Resolution Rate:</span>
-          <span className="font-bold text-primary-700">{resolutionRate}%</span>
+      {isEmpty ? (
+        <div className="p-8 text-center rounded-2xl border border-dashed border-secondary-200 bg-secondary-50">
+          <Activity size={32} className="mx-auto mb-3 text-secondary-300" />
+          <p className="text-sm font-bold text-secondary-500">No complaints recorded for {localityInfo?.name || `Pincode ${pincode}`} yet.</p>
+          <p className="text-xs text-secondary-400 mt-1">Metrics will appear once citizens report civic issues in this area.</p>
         </div>
-        <div className="flex items-center gap-1.5 text-secondary-400 text-[11px]">
-          <MapPin size={12} className="text-primary-600" />
-          <span>{localityInfo ? localityInfo.ward : `Pincode ${pincode}`}</span>
+      ) : (
+        <div className="space-y-4">
+          {/* ── Row 1: Count KPIs ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard
+              label="Total Issues Reported"
+              value={total}
+              sub={`in ${localityInfo?.ward || `Pincode ${pincode}`}`}
+              icon={Activity}
+              iconBg="bg-secondary-100"
+              iconColor="text-secondary-600"
+              tooltip="All complaints submitted for this locality in the live system"
+            />
+            <KpiCard
+              label="Resolved"
+              value={resolved}
+              sub={total > 0 ? `${Math.round((resolved / total) * 100)}% of total` : '—'}
+              icon={CheckCircle2}
+              iconBg="bg-green-100"
+              iconColor="text-success"
+              valueColor="text-success"
+              tooltip="Complaints confirmed resolved by the municipal department"
+            />
+            <KpiCard
+              label="In Progress"
+              value={inProgress}
+              sub="Actively being worked"
+              icon={RefreshCw}
+              iconBg="bg-amber-100"
+              iconColor="text-warning"
+              valueColor="text-warning"
+              tooltip="Complaints currently assigned to a municipal team"
+            />
+            <KpiCard
+              label="Pending"
+              value={pending}
+              sub="Awaiting municipal action"
+              icon={Clock}
+              iconBg="bg-blue-100"
+              iconColor="text-primary-600"
+              valueColor="text-primary-700"
+              tooltip="Open, reported, or verified complaints not yet in active resolution"
+            />
+          </div>
+
+          {/* ── Row 2: Performance KPIs ──────────────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard
+              label="High Priority Issues"
+              value={highPriority}
+              sub="Urgent or high severity"
+              icon={Flame}
+              iconBg="bg-red-100"
+              iconColor="text-error"
+              valueColor={highPriority > 0 ? 'text-error' : 'text-success'}
+              tooltip="Complaints flagged as Urgent or High priority by citizens and AI"
+            />
+            <KpiCard
+              label="Avg. Resolution Time"
+              value={`~${avgResolutionDays}d`}
+              sub="Days to resolve"
+              icon={Clock}
+              iconBg="bg-purple-100"
+              iconColor="text-purple-600"
+              valueColor="text-purple-700"
+              isDemo={avgResolutionIsDemo}
+              tooltip={avgResolutionIsDemo
+                ? 'Estimated from complaint resolution timelines · No verified timestamp data yet'
+                : 'Calculated from complaint creation to resolution date'}
+            />
+            <KpiCard
+              label="Resolution Rate"
+              value={`${resolutionRate}%`}
+              sub="Resolved ÷ Total Issues"
+              icon={TrendingUp}
+              iconBg="bg-green-100"
+              iconColor="text-success"
+              valueColor={resolutionRate >= 60 ? 'text-success' : resolutionRate >= 40 ? 'text-warning' : 'text-error'}
+              tooltip="Percentage of all reported issues that have been fully resolved"
+            />
+            <KpiCard
+              label="Citizen Confirmation Rate"
+              value={`${citizenConfirmationRate}%`}
+              sub="Citizens who confirmed issue"
+              icon={ThumbsUp}
+              iconBg="bg-indigo-100"
+              iconColor="text-indigo-600"
+              valueColor="text-indigo-700"
+              isDemo={confirmationIsDemo}
+              tooltip={confirmationIsDemo
+                ? 'Demo estimate · No verification votes recorded for this locality yet'
+                : 'Percentage of status verification votes that confirmed the issue'}
+            />
+          </div>
+
+          {/* ── Resolution Rate Visual Bar ───────────────────────────────── */}
+          <div className="p-4 bg-surface rounded-2xl border border-secondary-200 space-y-3">
+            <ResolutionRateBar rate={resolutionRate} label={`Resolution Rate · ${localityInfo?.name || `Pincode ${pincode}`}`} />
+
+            {/* Status breakdown strip */}
+            {total > 0 && (
+              <div className="flex rounded-lg overflow-hidden h-2 mt-2" title="Status breakdown">
+                {resolved > 0 && (
+                  <div className="bg-success" style={{ width: `${(resolved / total) * 100}%` }} title={`Resolved: ${resolved}`} />
+                )}
+                {inProgress > 0 && (
+                  <div className="bg-warning" style={{ width: `${(inProgress / total) * 100}%` }} title={`In Progress: ${inProgress}`} />
+                )}
+                {pending > 0 && (
+                  <div className="bg-primary-300" style={{ width: `${(pending / total) * 100}%` }} title={`Pending: ${pending}`} />
+                )}
+              </div>
+            )}
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 text-[10px] font-semibold text-secondary-500 pt-0.5">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success inline-block" />Resolved ({resolved})</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning inline-block" />In Progress ({inProgress})</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary-300 inline-block" />Pending ({pending})</span>
+            </div>
+
+            {/* Data notes */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-secondary-100 text-[10px] text-secondary-400">
+              <span><span className="text-success font-bold">●</span> Live complaint data</span>
+              {(avgResolutionIsDemo || confirmationIsDemo) && (
+                <span><span className="text-amber-500 font-bold">●</span> Demo-estimated metrics clearly labelled</span>
+              )}
+              <span className="ml-auto flex items-center gap-1">
+                <MapPin size={10} className="text-primary-500" />
+                {localityInfo?.ward || `Pincode ${pincode}`}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
 
 // ── 2. 5-Year Civic Record ───────────────────────────────────────────────────
 
