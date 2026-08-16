@@ -327,7 +327,7 @@ function parseEstimatedDays(str) {
 // ── 1. Overview (CivicPulse Score, Current Snapshot, Priorities, Attention, Trend)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerification }) {
+function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerification, getComplaintVotes }) {
   const pinNum = parseInt(pincode, 10) || 400000;
   const pinOffset = (pinNum % 19);
 
@@ -346,25 +346,35 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
   const prevScore = Math.max(60, civicPulseScore - 5);
   const scoreGain = Number((((civicPulseScore - prevScore) / prevScore) * 100).toFixed(1));
 
-  // Top 3 Community Priorities (from live complaint voting or realistic locality defaults)
-  const defaultPriorities = [
-    { rank: 1, title: 'Road resurfacing and pothole repairs', category: 'Roads & Potholes', upvotes: 348 + pinOffset * 3 },
-    { rank: 2, title: 'Low water pressure during peak hours', category: 'Water Supply', upvotes: 291 + pinOffset * 2 },
-    { rank: 3, title: 'Unsegregated waste accumulation on main road', category: 'Sanitation & Waste', upvotes: 224 + pinOffset * 2 },
-  ];
-
+  // ── Community Priorities: sorted by net community votes using existing FeedLoop data ──
+  // Net votes = (base upvotes + user upDelta) - (base downvotes + user downDelta)
+  // Falls back to pincode-seeded demo data when no local complaints exist.
   const communityPriorities = useMemo(() => {
     if (complaints && complaints.length > 0) {
-      const sorted = [...complaints].sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
-      return sorted.slice(0, 3).map((c, idx) => ({
-        rank: idx + 1,
-        title: c.title,
-        category: c.category || 'General Civic',
-        upvotes: c.upvotes || (348 - idx * 55),
-      }));
+      const withNetVotes = complaints.map((c) => {
+        const voteData = getComplaintVotes
+          ? getComplaintVotes(c._id, c.upvotes, c.downvotes)
+          : { netScore: (c.upvotes || 0) - (c.downvotes || 0) };
+        return {
+          _id: c._id,
+          rank: 0,
+          title: c.title,
+          category: c.category || 'General Civic',
+          status: c.status || 'open',
+          createdAt: c.createdAt,
+          netVotes: voteData.netScore,
+        };
+      });
+      const sorted = withNetVotes.sort((a, b) => b.netVotes - a.netVotes);
+      return sorted.slice(0, 3).map((c, idx) => ({ ...c, rank: idx + 1 }));
     }
-    return defaultPriorities;
-  }, [complaints, pinOffset]);
+    // Pincode-seeded fallback (no live local complaints)
+    return [
+      { rank: 1, _id: null, title: 'Road resurfacing and pothole repairs', category: 'Roads & Potholes', status: 'open', createdAt: null, netVotes: 348 + pinOffset * 3 },
+      { rank: 2, _id: null, title: 'Low water pressure during peak hours', category: 'Water Supply', status: 'open', createdAt: null, netVotes: 291 + pinOffset * 2 },
+      { rank: 3, _id: null, title: 'Unsegregated waste accumulation on main road', category: 'Sanitation & Waste', status: 'open', createdAt: null, netVotes: 224 + pinOffset * 2 },
+    ];
+  }, [complaints, pinOffset, getComplaintVotes]);
 
   // Max 2-3 Needs Attention Alerts
   const attentionItems = useMemo(() => {
@@ -497,51 +507,101 @@ function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerifi
 
       {/* ── 3 & 4. Two-Column Grid: Top 3 Community Priorities & Needs Attention ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Top 3 Community Priorities */}
+        {/* ── Community Priorities: connected to existing FeedLoop voting data ── */}
         <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-3 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-secondary-100 pb-2 mb-3">
               <div className="flex items-center gap-2">
                 <ThumbsUp size={14} className="text-primary-600" />
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800">
-                  Top 3 Community Priorities
+                  Community Priorities
                 </h3>
               </div>
               <span className="text-[10px] text-secondary-400 font-semibold">
-                Citizen Upvotes
+                Net Community Votes
               </span>
             </div>
 
             <div className="space-y-2">
-              {communityPriorities.map((item) => (
-                <div
-                  key={item.rank}
-                  className="p-2.5 rounded-xl bg-secondary-50/80 border border-secondary-100 flex items-center justify-between gap-2 hover:border-primary-300 transition-colors"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[11px] font-black flex items-center justify-center flex-shrink-0">
-                      #{item.rank}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-secondary-800 truncate">
-                        {item.title}
-                      </p>
-                      <p className="text-[10px] text-secondary-400 truncate">
-                        {item.category}
-                      </p>
+              {communityPriorities.map((item) => {
+                // Status label helper
+                const statusLabel = {
+                  resolved: 'Resolved',
+                  in_progress: 'In Progress',
+                  open: 'Reported',
+                  assigned: 'Assigned',
+                  verified: 'Verified',
+                  reported: 'Reported',
+                }[item.status] || item.status || 'Reported';
+
+                const statusColor = {
+                  resolved: 'text-success',
+                  in_progress: 'text-primary-700',
+                  open: 'text-secondary-600',
+                  assigned: 'text-amber-700',
+                  verified: 'text-green-700',
+                }[item.status] || 'text-secondary-500';
+
+                // Relative time
+                const timeAgo = (() => {
+                  if (!item.createdAt) return null;
+                  const diff = Date.now() - new Date(item.createdAt).getTime();
+                  const h = Math.floor(diff / 3600000);
+                  if (h < 1) return 'Just now';
+                  if (h < 24) return `${h}h ago`;
+                  const d = Math.floor(h / 24);
+                  return `${d}d ago`;
+                })();
+
+                const inner = (
+                  <div className="p-2.5 rounded-xl bg-secondary-50/80 border border-secondary-100 flex items-start justify-between gap-2 transition-colors hover:border-primary-300 hover:bg-primary-50/30">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[11px] font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {item.rank}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-secondary-800 leading-snug line-clamp-2">
+                          {item.title}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[10px] text-secondary-400">{item.category}</span>
+                          <span className="text-[10px] text-secondary-300">·</span>
+                          <span className={`text-[10px] font-bold ${statusColor}`}>{statusLabel}</span>
+                          {timeAgo && (
+                            <>
+                              <span className="text-[10px] text-secondary-300">·</span>
+                              <span className="text-[10px] text-secondary-400">{timeAgo}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-100 flex-shrink-0 mt-0.5">
+                      <span>▲</span>
+                      <span>{item.netVotes.toLocaleString()}</span>
                     </div>
                   </div>
+                );
 
-                  <div className="flex items-center gap-1 text-xs font-black text-primary-700 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-100 flex-shrink-0">
-                    <span>▲</span>
-                    <span>{item.upvotes}</span>
+                return item._id ? (
+                  <NavLink
+                    key={item._id}
+                    to={`/complaint/${item._id}`}
+                    className="block no-underline"
+                  >
+                    {inner}
+                  </NavLink>
+                ) : (
+                  <div key={item.rank}>
+                    {inner}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           <p className="text-[10px] text-secondary-400 italic pt-1">
-            Ranked directly from verified resident votes in {localityInfo?.name || `Pincode ${pincode}`}.
+            Ranked by net community votes from residents in {localityInfo?.name || `Pincode ${pincode}`}. Click to open complaint.
           </p>
         </Card>
 
@@ -1720,6 +1780,7 @@ export default function CivicInsights() {
               pincode={selectedPincode}
               localityInfo={localityInfo}
               getComplaintVerification={getComplaintVerification}
+              getComplaintVotes={getComplaintVotes}
             />
           )}
 
