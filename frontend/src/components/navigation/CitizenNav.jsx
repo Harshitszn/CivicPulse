@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, ShieldAlert } from 'lucide-react';
+import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, ShieldAlert, BarChart2 } from 'lucide-react';
 import { usePincode } from '../../context/PincodeContext';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 
 const NAV_ITEMS = [
-  { to: '/',             label: 'Home',       icon: Home,       id: 'nav-home'     },
-  { to: '/feed',         label: 'Feed',        icon: Rss,        id: 'nav-feed'     },
-  { to: '/report',       label: 'Report',      icon: PlusCircle, id: 'nav-report'   },
-  { to: '/my-complaints',label: 'Mine',        icon: FileText,   id: 'nav-mine'     },
-  { to: '/profile',      label: 'Profile',     icon: User,       id: 'nav-profile'  },
+  { to: '/',             label: 'Home',           desktopLabel: 'Home',           icon: Home,       id: 'nav-home'     },
+  { to: '/feed',         label: 'Feed',           desktopLabel: 'Feed',           icon: Rss,        id: 'nav-feed'     },
+  { to: '/insights',     label: 'Insights',       desktopLabel: 'Civic Insights', icon: BarChart2,  id: 'nav-insights' },
+  { to: '/report',       label: 'Report',         desktopLabel: 'Report',         icon: PlusCircle, id: 'nav-report'   },
+  { to: '/my-complaints',label: 'Mine',           desktopLabel: 'Mine',           icon: FileText,   id: 'nav-mine'     },
+  { to: '/profile',      label: 'Profile',        desktopLabel: 'Profile',        icon: User,       id: 'nav-profile'  },
 ];
 
 function CitizenNav() {
@@ -76,7 +77,7 @@ function CitizenNav() {
           </div>
 
           <nav className="flex items-center gap-1">
-            {NAV_ITEMS.map(({ to, label, icon: Icon, id }) => (
+            {NAV_ITEMS.map(({ to, label, desktopLabel, icon: Icon, id }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -92,7 +93,7 @@ function CitizenNav() {
                 }
               >
                 <Icon size={16} />
-                {label}
+                {desktopLabel || label}
               </NavLink>
             ))}
             <NavLink

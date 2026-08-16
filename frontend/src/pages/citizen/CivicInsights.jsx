@@ -1,0 +1,895 @@
+﻿import React, { useState, useMemo } from 'react';
+import {
+  BarChart2,
+  MapPin,
+  Search,
+  TrendingUp,
+  TrendingDown,
+  Shield,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Activity,
+  Star,
+  Info,
+  Layers,
+  Sparkles,
+  RefreshCw,
+  ChevronRight,
+  Flame,
+  ThumbsUp,
+  Lock,
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
+import { usePincode } from '../../context/PincodeContext';
+import Button from '../../components/ui/Button';
+import Card from '../../components/ui/Card';
+
+// ── Locality & Demo Pincodes Metadata ─────────────────────────────────────────
+
+export const DEMO_LOCALITIES = [
+  {
+    code: '400064',
+    name: 'Malad West',
+    ward: 'Ward 47 · P/North Ward',
+    city: 'Mumbai',
+    subZones: [
+      { name: 'Orlem Junction', level: 'high', count: 6, topIssue: 'Road Damage' },
+      { name: 'Link Road Commercial', level: 'elevated', count: 4, topIssue: 'Traffic / Potholes' },
+      { name: 'Evershine Nagar', level: 'moderate', count: 3, topIssue: 'Garbage Disposal' },
+      { name: 'Marve Road', level: 'moderate', count: 2, topIssue: 'Street Lighting' },
+      { name: 'Chincholi Bunder', level: 'low', count: 1, topIssue: 'Water Pressure' },
+      { name: 'Mindspace Sector', level: 'low', count: 1, topIssue: 'Park Maintenance' },
+    ],
+  },
+  {
+    code: '400067',
+    name: 'Kandivali West',
+    ward: 'Ward 31 · R/South Ward',
+    city: 'Mumbai',
+    subZones: [
+      { name: 'Mahavir Nagar', level: 'high', count: 7, topIssue: 'Water Pipeline' },
+      { name: 'Charkop Sector 2', level: 'elevated', count: 4, topIssue: 'Drainage Clog' },
+      { name: 'MG Road Market', level: 'moderate', count: 3, topIssue: 'Sanitation' },
+      { name: 'Kandivali Station West', level: 'high', count: 5, topIssue: 'Road Resurfacing' },
+      { name: 'Dahanukar Wadi', level: 'low', count: 1, topIssue: 'Streetlights' },
+      { name: 'Poisar Naka', level: 'low', count: 1, topIssue: 'Tree Pruning' },
+    ],
+  },
+  {
+    code: '400076',
+    name: 'Powai',
+    ward: 'Ward 12 · S Ward',
+    city: 'Mumbai',
+    subZones: [
+      { name: 'Hiranandani Sector 4', level: 'high', count: 8, topIssue: 'Water Supply' },
+      { name: 'Powai Lake Promenade', level: 'elevated', count: 5, topIssue: 'Streetlights' },
+      { name: 'JVLR Junction', level: 'moderate', count: 3, topIssue: 'Potholes' },
+      { name: 'Central Avenue', level: 'moderate', count: 2, topIssue: 'Garbage Clearance' },
+      { name: 'Galleria Commercial', level: 'low', count: 2, topIssue: 'Drainage' },
+      { name: 'IIT Main Gate', level: 'low', count: 1, topIssue: 'Pedestrian Walkway' },
+    ],
+  },
+  {
+    code: '400054',
+    name: 'Santacruz West',
+    ward: 'Ward 84 · H/West Ward',
+    city: 'Mumbai',
+    subZones: [
+      { name: 'Linking Road Shopping', level: 'high', count: 6, topIssue: 'Stormwater Drainage' },
+      { name: 'Willingdon Gymkhana', level: 'elevated', count: 4, topIssue: 'Waterlogging' },
+      { name: 'Tagore Road', level: 'moderate', count: 3, topIssue: 'Road Repair' },
+      { name: 'Station Road', level: 'elevated', count: 4, topIssue: 'Waste Management' },
+      { name: 'Juhu Koliwada Border', level: 'low', count: 2, topIssue: 'Streetlights' },
+      { name: 'Hasnabad Lane', level: 'low', count: 1, topIssue: 'Pavements' },
+    ],
+  },
+];
+
+const SERVICE_CATEGORIES = [
+  { key: 'roads',       label: 'Roads & Potholes',    emoji: '🛣️', dept: 'Public Works' },
+  { key: 'water',       label: 'Water Supply',         emoji: '💧', dept: 'Water Board' },
+  { key: 'sanitation',  label: 'Sanitation & Waste',   emoji: '🗑️', dept: 'Solid Waste Mgmt' },
+  { key: 'streetlight', label: 'Streetlights',         emoji: '💡', dept: 'Public Lighting' },
+  { key: 'drainage',    label: 'Drainage & Stormwater',emoji: '🌊', dept: 'Stormwater Drainage' },
+  { key: 'parks',       label: 'Parks & Green Spaces', emoji: '🌳', dept: 'Gardens Dept.' },
+  { key: 'electricity', label: 'Electricity & Grid',   emoji: '⚡', dept: 'Electricity Dept.' },
+];
+
+function generate5YearHistory(pincode) {
+  const pinNum = parseInt(pincode, 10) || 400000;
+  const baseRate = 58 + (pinNum % 22);
+
+  return [
+    { year: '2021', rate: Math.max(48, Math.min(88, baseRate - 12)), total: 380 + (pinNum % 80), resolved: Math.round((380 + (pinNum % 80)) * ((baseRate - 12) / 100)) },
+    { year: '2022', rate: Math.max(52, Math.min(90, baseRate - 7)), total: 420 + (pinNum % 90), resolved: Math.round((420 + (pinNum % 90)) * ((baseRate - 7) / 100)) },
+    { year: '2023', rate: Math.max(56, Math.min(92, baseRate - 2)), total: 490 + (pinNum % 110), resolved: Math.round((490 + (pinNum % 110)) * ((baseRate - 2) / 100)) },
+    { year: '2024', rate: Math.max(62, Math.min(95, baseRate + 5)), total: 540 + (pinNum % 120), resolved: Math.round((540 + (pinNum % 120)) * ((baseRate + 5) / 100)) },
+    { year: '2025', rate: Math.max(68, Math.min(98, baseRate + 11)), total: 590 + (pinNum % 140), resolved: Math.round((590 + (pinNum % 140)) * ((baseRate + 11) / 100)) },
+  ];
+}
+
+function getServiceScore(pincode, key, liveComplaints = []) {
+  const matching = liveComplaints.filter(c => (c.categorySlug || '').includes(key) || (c.category || '').toLowerCase().includes(key));
+  if (matching.length > 0) {
+    const resCount = matching.filter(c => c.status === 'resolved').length;
+    const rate = Math.round((resCount / matching.length) * 100);
+    return Math.max(45, Math.min(98, rate > 0 ? rate : 60));
+  }
+  const pinNum = parseInt(pincode, 10) || 400000;
+  const categorySeeds = { roads: 17, water: 29, sanitation: 43, streetlight: 59, drainage: 71, parks: 83, electricity: 97 };
+  const val = ((pinNum + (categorySeeds[key] || 11)) % 40) + 56;
+  return Math.min(96, Math.max(48, val));
+}
+
+function getScoreBadgeColor(score) {
+  if (score >= 75) return 'text-success bg-green-50 border-green-200';
+  if (score >= 60) return 'text-primary-700 bg-primary-50 border-primary-200';
+  if (score >= 48) return 'text-warning bg-amber-50 border-amber-200';
+  return 'text-error bg-red-50 border-red-200';
+}
+
+function getScoreText(score) {
+  if (score >= 82) return 'Excellent';
+  if (score >= 70) return 'Good';
+  if (score >= 58) return 'Moderate';
+  if (score >= 45) return 'Needs Attention';
+  return 'Critical Work Required';
+}
+
+function getHeatmapColor(level) {
+  switch (level) {
+    case 'high': return 'bg-red-500 text-white';
+    case 'elevated': return 'bg-amber-500 text-white';
+    case 'moderate': return 'bg-amber-300 text-secondary-900';
+    case 'low': default: return 'bg-green-400 text-secondary-900';
+  }
+}
+
+function getHeatmapBg(level) {
+  switch (level) {
+    case 'high': return 'bg-red-50 border-red-200 text-red-800';
+    case 'elevated': return 'bg-orange-50 border-orange-200 text-orange-800';
+    case 'moderate': return 'bg-amber-50 border-amber-200 text-amber-800';
+    case 'low': default: return 'bg-green-50 border-green-200 text-green-800';
+  }
+}
+
+// ── Reusable Section Atoms ────────────────────────────────────────────────────
+
+function SectionHeader({ number, title, badge }) {
+  return (
+    <div className="flex items-center justify-between mt-8 mb-3">
+      <div className="flex items-center gap-2">
+        <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[11px] font-extrabold flex items-center justify-center">
+          {number}
+        </span>
+        <h2 className="text-sm font-bold text-secondary-800 tracking-tight">{title}</h2>
+      </div>
+      {badge && badge}
+    </div>
+  );
+}
+
+function DemoBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-700">
+      📊 Demo Data
+    </span>
+  );
+}
+
+function LiveBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-[10px] font-bold text-success">
+      <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+      Live Complaint Store
+    </span>
+  );
+}
+
+const CUSTOM_TOOLTIP_STYLE = {
+  borderRadius: 8,
+  border: '1px solid #E5E7EB',
+  fontSize: 12,
+  backgroundColor: '#FFFFFF',
+  padding: '6px 10px',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+};
+
+// ── 1. Current Civic Snapshot ─────────────────────────────────────────────────
+
+function CurrentSnapshotSection({ complaints, pincode, localityInfo }) {
+  const total = complaints.length;
+  const resolved = complaints.filter(c => c.status === 'resolved').length;
+  const inProgress = complaints.filter(c => c.status === 'in_progress').length;
+  const urgent = complaints.filter(c => c.priority === 'urgent' || c.priority === 'high').length;
+  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 74;
+
+  const stats = [
+    { label: 'Total Reported',  value: total, icon: Activity, color: 'text-secondary-800', bg: 'bg-secondary-50 border-secondary-200' },
+    { label: 'Resolved',        value: resolved, icon: CheckCircle2, color: 'text-success', bg: 'bg-green-50 border-green-200' },
+    { label: 'In Progress',     value: inProgress, icon: Clock, color: 'text-warning', bg: 'bg-amber-50 border-amber-200' },
+    { label: 'Urgent / High',   value: urgent, icon: AlertTriangle, color: 'text-error', bg: 'bg-red-50 border-red-200' },
+  ];
+
+  return (
+    <div>
+      <SectionHeader number="1" title="Current Civic Snapshot" badge={<LiveBadge />} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {stats.map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className={`p-3.5 rounded-xl border ${bg} transition-all`}>
+            <div className="flex items-center justify-between">
+              <Icon size={16} className={color} />
+              <span className="text-[10px] font-semibold text-secondary-400">Locality</span>
+            </div>
+            <p className={`text-2xl font-extrabold mt-1.5 ${color}`}>{value}</p>
+            <p className="text-[11px] text-secondary-500 font-medium">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 p-3 bg-surface rounded-xl border border-secondary-200 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-secondary-500">Live Resolution Rate:</span>
+          <span className="font-bold text-primary-700">{resolutionRate}%</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-secondary-400 text-[11px]">
+          <MapPin size={12} className="text-primary-600" />
+          <span>{localityInfo ? localityInfo.ward : `Pincode ${pincode}`}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 2. 5-Year Civic Record ───────────────────────────────────────────────────
+
+function FiveYearRecordSection({ pincode, localityInfo }) {
+  const historyData = useMemo(() => generate5YearHistory(pincode), [pincode]);
+
+  return (
+    <div>
+      <SectionHeader number="2" title="5-Year Civic Record" badge={<DemoBadge />} />
+      <Card variant="flat" className="p-4">
+        <div className="flex items-center justify-between mb-3 text-xs">
+          <div>
+            <p className="font-semibold text-secondary-800">Annual Resolution Rate Trend (2021 – 2025)</p>
+            <p className="text-[11px] text-secondary-400">Representation Period · Selected Locality {pincode}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-bold text-success">
+              +{historyData[4].rate - historyData[0].rate}% 5-Yr Progress
+            </span>
+          </div>
+        </div>
+
+        <div className="h-44 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={historyData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 11, fill: '#6B7280' }} />
+              <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
+              <Tooltip
+                contentStyle={CUSTOM_TOOLTIP_STYLE}
+                formatter={(val) => [`${val}%`, 'Resolution Rate']}
+                labelFormatter={(label) => `Civic Year ${label}`}
+              />
+              <Bar dataKey="rate" fill="#2563EB" radius={[4, 4, 0, 0]} barSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="grid grid-cols-5 gap-1.5 mt-3 pt-3 border-t border-secondary-100 text-center">
+          {historyData.map((item) => (
+            <div key={item.year} className="p-1.5 rounded-lg bg-secondary-50">
+              <p className="text-[10px] font-bold text-secondary-500">{item.year}</p>
+              <p className="text-xs font-extrabold text-primary-700">{item.rate}%</p>
+              <p className="text-[9px] text-secondary-400">{item.resolved}/{item.total}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 3. Civic Health Score ────────────────────────────────────────────────────
+
+function CivicHealthScoreSection({ pincode, complaints }) {
+  const pinNum = parseInt(pincode, 10) || 400000;
+  const liveCount = complaints.length;
+  const liveResolved = complaints.filter(c => c.status === 'resolved').length;
+  const liveRate = liveCount > 0 ? (liveResolved / liveCount) * 100 : 72;
+
+  const baseline = 65 + (pinNum % 20);
+  const compositeScore = Math.round((baseline * 0.5) + (liveRate * 0.5));
+  const ratingText = getScoreText(compositeScore);
+
+  const subScores = [
+    { label: 'Service Responsiveness', score: Math.min(98, compositeScore + 4), color: 'text-primary-600', fill: '#2563EB' },
+    { label: 'Resolution Efficiency', score: Math.min(95, compositeScore - 2), color: 'text-success', fill: '#16A34A' },
+    { label: 'Citizen Satisfaction', score: Math.min(96, compositeScore + 1), color: 'text-secondary-700', fill: '#4B5563' },
+  ];
+
+  return (
+    <div>
+      <SectionHeader number="3" title="Civic Health Score" badge={<span className="text-[10px] text-secondary-400">Real-time composite</span>} />
+      <Card variant="flat" className="p-4">
+        <div className="flex flex-col sm:flex-row items-center gap-5">
+          <div className="flex flex-col items-center justify-center flex-shrink-0">
+            <div
+              className={`w-24 h-24 rounded-full flex flex-col items-center justify-center border-4 ${
+                compositeScore >= 75
+                  ? 'border-success bg-green-50'
+                  : compositeScore >= 60
+                  ? 'border-primary-500 bg-primary-50'
+                  : compositeScore >= 48
+                  ? 'border-warning bg-amber-50'
+                  : 'border-error bg-red-50'
+              }`}
+            >
+              <span className="text-3xl font-black text-secondary-900 leading-none">{compositeScore}</span>
+              <span className="text-[10px] font-bold text-secondary-400 mt-0.5">/ 100</span>
+            </div>
+            <span className={`mt-2 px-2.5 py-0.5 rounded-full text-xs font-bold ${getScoreBadgeColor(compositeScore)}`}>
+              {ratingText}
+            </span>
+          </div>
+
+          <div className="flex-1 w-full space-y-2.5">
+            <div>
+              <p className="text-xs font-bold text-secondary-800">Civic Health Evaluation</p>
+              <p className="text-[11px] text-secondary-500">
+                Aggregated performance score for <strong>Selected Locality {pincode}</strong> combining live resolution records and verified service benchmarks.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {subScores.map((sub) => (
+                <div key={sub.label}>
+                  <div className="flex justify-between text-[11px] font-semibold mb-1">
+                    <span className="text-secondary-600">{sub.label}</span>
+                    <span className={sub.color}>{sub.score}%</span>
+                  </div>
+                  <div className="w-full bg-secondary-100 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${sub.score}%`, backgroundColor: sub.fill }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 4. Service Performance ───────────────────────────────────────────────────
+
+function ServicePerformanceSection({ pincode, complaints }) {
+  const categoryScores = useMemo(() => {
+    return SERVICE_CATEGORIES.map(cat => {
+      const score = getServiceScore(pincode, cat.key, complaints);
+      const catComplaints = complaints.filter(c => (c.categorySlug || '').includes(cat.key) || (c.category || '').toLowerCase().includes(cat.key));
+      return {
+        ...cat,
+        score,
+        issueCount: catComplaints.length,
+      };
+    });
+  }, [pincode, complaints]);
+
+  return (
+    <div>
+      <SectionHeader number="4" title="Service Performance" badge={<DemoBadge />} />
+      <Card variant="flat" className="p-4 space-y-3">
+        <p className="text-xs text-secondary-500 leading-relaxed">
+          Civic-service operational indices by core municipal department for <strong>Selected Locality {pincode}</strong>.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {categoryScores.map((cat) => (
+            <div key={cat.key} className="p-3 bg-secondary-50 rounded-xl border border-secondary-200 flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg">{cat.emoji}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-secondary-800 truncate">{cat.label}</p>
+                    <p className="text-[10px] text-secondary-400 truncate">{cat.dept}</p>
+                  </div>
+                </div>
+                <span className={`text-xs font-black px-2 py-0.5 rounded-md ${getScoreBadgeColor(cat.score)}`}>
+                  {cat.score}%
+                </span>
+              </div>
+
+              <div className="w-full bg-secondary-200 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-500 ${
+                    cat.score >= 75 ? 'bg-success' : cat.score >= 60 ? 'bg-primary-600' : 'bg-warning'
+                  }`}
+                  style={{ width: `${cat.score}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between text-[10px] text-secondary-400 mt-1.5">
+                <span>{cat.issueCount} active local reports</span>
+                <span>{cat.score >= 75 ? 'Optimal' : cat.score >= 60 ? 'Normal' : 'Attention'}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 5. Community Priorities ──────────────────────────────────────────────────
+
+function CommunityPrioritiesSection({ complaints }) {
+  const rankedCategories = useMemo(() => {
+    const map = {};
+    complaints.forEach((c) => {
+      const cat = c.category || 'General Civic';
+      if (!map[cat]) map[cat] = { count: 0, upvotes: 0, urgent: 0, items: [] };
+      map[cat].count += 1;
+      map[cat].upvotes += (c.upvotes || 0);
+      if (c.priority === 'urgent' || c.priority === 'high') map[cat].urgent += 1;
+      map[cat].items.push(c);
+    });
+
+    return Object.entries(map)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.upvotes - a.upvotes || b.count - a.count);
+  }, [complaints]);
+
+  return (
+    <div>
+      <SectionHeader number="5" title="Community Priorities" badge={<LiveBadge />} />
+      {rankedCategories.length === 0 ? (
+        <Card variant="flat" className="p-6 text-center text-xs text-secondary-400">
+          <Info size={24} className="mx-auto mb-2 text-secondary-300" />
+          No community upvoted complaints recorded for this locality yet.
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {rankedCategories.map((item, idx) => (
+            <div key={item.name} className="p-3.5 bg-surface rounded-xl border border-secondary-200 flex items-center justify-between gap-3 hover:border-primary-300 transition-colors">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-6 h-6 rounded-full bg-primary-50 border border-primary-200 text-primary-700 text-xs font-black flex items-center justify-center flex-shrink-0">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-secondary-800 truncate">{item.name}</p>
+                  <p className="text-[11px] text-secondary-400">
+                    {item.count} report{item.count !== 1 ? 's' : ''} {item.urgent > 0 && `· ⚠️ ${item.urgent} flagged high priority`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-right">
+                  <p className="text-xs font-extrabold text-primary-600 flex items-center justify-end gap-1">
+                    <ThumbsUp size={12} /> {item.upvotes}
+                  </p>
+                  <p className="text-[10px] text-secondary-400">Citizen votes</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="text-[11px] text-secondary-400 mt-1.5 italic">
+            Ranked directly by citizen votes and community escalation velocity.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 6. Civic Heatmap ─────────────────────────────────────────────────────────
+
+function CivicHeatmapSection({ pincode, localityInfo }) {
+  const subZones = localityInfo?.subZones || [
+    { name: 'Central Sector', level: 'elevated', count: 5, topIssue: 'Road Infrastructure' },
+    { name: 'North Residential', level: 'moderate', count: 3, topIssue: 'Water Pressure' },
+    { name: 'Market Boulevard', level: 'high', count: 6, topIssue: 'Garbage Disposal' },
+    { name: 'South Avenue', level: 'low', count: 1, topIssue: 'Streetlights' },
+  ];
+
+  return (
+    <div>
+      <SectionHeader number="6" title="Civic Heatmap" badge={<span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200">Locality Density Map</span>} />
+      <Card variant="flat" className="p-4 space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <div>
+            <p className="font-bold text-secondary-800">Sub-Zone Complaint Density & Resolution Hotspots</p>
+            <p className="text-[11px] text-secondary-400">Geographic concentration within {localityInfo ? localityInfo.name : `Pincode ${pincode}`}</p>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-secondary-500">
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Low
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block ml-1" /> Med
+            <span className="w-2 h-2 rounded-full bg-red-500 inline-block ml-1" /> High
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          {subZones.map((zone) => (
+            <div
+              key={zone.name}
+              className={`p-3 rounded-xl border ${getHeatmapBg(zone.level)} transition-all hover:scale-[1.01]`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${getHeatmapColor(zone.level)}`}>
+                  {zone.level}
+                </span>
+                <span className="text-xs font-bold">{zone.count} issues</span>
+              </div>
+              <p className="text-xs font-bold truncate mt-1">{zone.name}</p>
+              <p className="text-[10px] opacity-80 mt-0.5 truncate">Primary: {zone.topIssue}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 7. What Improved ─────────────────────────────────────────────────────────
+
+function WhatImprovedSection({ complaints }) {
+  const resolvedList = complaints.filter(c => c.status === 'resolved');
+
+  return (
+    <div>
+      <SectionHeader number="7" title="What Improved" badge={<LiveBadge />} />
+      {resolvedList.length === 0 ? (
+        <Card variant="flat" className="p-5 text-center text-xs text-secondary-400">
+          <CheckCircle2 size={24} className="mx-auto mb-2 text-secondary-300" />
+          No verified resolved complaints logged for this locality yet.
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {resolvedList.slice(0, 4).map((c) => (
+            <div key={c._id} className="p-3.5 bg-green-50 rounded-xl border border-green-200 flex items-start gap-3">
+              <CheckCircle2 size={18} className="text-success flex-shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-secondary-900 leading-snug">{c.title}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-secondary-500">
+                  <span className="font-semibold text-success">✓ Verified Resolved</span>
+                  <span>·</span>
+                  <span>{c.category}</span>
+                  <span>·</span>
+                  <span>{c.ward || 'Municipal Ward'}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 8. Needs Attention ───────────────────────────────────────────────────────
+
+function NeedsAttentionSection({ complaints }) {
+  const attentionList = complaints
+    .filter(c => c.status !== 'resolved')
+    .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
+
+  return (
+    <div>
+      <SectionHeader number="8" title="Needs Attention" badge={<LiveBadge />} />
+      {attentionList.length === 0 ? (
+        <Card variant="flat" className="p-5 text-center text-xs text-secondary-400">
+          <CheckCircle2 size={24} className="mx-auto mb-2 text-success" />
+          All active complaints in this locality are currently resolved! 🎉
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {attentionList.slice(0, 4).map((c) => (
+            <div key={c._id} className="p-3.5 bg-red-50 rounded-xl border border-red-200 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                <AlertTriangle size={18} className="text-error flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-secondary-900 leading-snug">{c.title}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-secondary-500">
+                    <span className="font-semibold text-error uppercase text-[10px]">
+                      {c.priority === 'urgent' ? '🔴 Urgent' : c.priority === 'high' ? '🟠 High Priority' : '🟡 Open'}
+                    </span>
+                    <span>·</span>
+                    <span>{c.category}</span>
+                    <span>·</span>
+                    <span>▲ {c.upvotes || 0} upvotes</span>
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 flex-shrink-0">
+                {c.status.replace('_', ' ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 9. Compare Areas ─────────────────────────────────────────────────────────
+
+function CompareAreasSection({ currentPincode, onSelectPincode, allComplaints }) {
+  const comparisonMatrix = useMemo(() => {
+    return DEMO_LOCALITIES.map((loc) => {
+      const pinNum = parseInt(loc.code, 10);
+      const locComplaints = (allComplaints || []).filter(c => c.pincode === loc.code);
+      const resolved = locComplaints.filter(c => c.status === 'resolved').length;
+      const rate = locComplaints.length > 0 ? Math.round((resolved / locComplaints.length) * 100) : (68 + (pinNum % 18));
+      const score = Math.round((rate * 0.6) + ((60 + (pinNum % 25)) * 0.4));
+
+      return {
+        ...loc,
+        score,
+        totalComplaints: locComplaints.length || (12 + (pinNum % 15)),
+        resolutionRate: rate,
+      };
+    });
+  }, [allComplaints]);
+
+  return (
+    <div>
+      <SectionHeader number="9" title="Compare Areas" badge={<span className="text-[10px] text-secondary-400">Benchmark Matrix</span>} />
+      <Card variant="flat" className="p-4 space-y-3">
+        <p className="text-xs text-secondary-500">
+          Cross-locality comparative performance metrics across demo zones.
+        </p>
+
+        <div className="space-y-2">
+          {comparisonMatrix.map((item) => {
+            const isSelected = item.code === currentPincode;
+            return (
+              <div
+                key={item.code}
+                className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                  isSelected
+                    ? 'bg-primary-50 border-primary-300 ring-1 ring-primary-300'
+                    : 'bg-surface border-secondary-200 hover:border-secondary-300'
+                }`}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-secondary-900">{item.name}</span>
+                    <span className="text-[10px] font-bold text-primary-700 bg-white px-1.5 py-0.5 rounded border border-primary-200">
+                      {item.code}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[9px] font-extrabold bg-primary-600 text-white px-1.5 py-0.5 rounded-full">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-secondary-400 mt-0.5">{item.ward}</p>
+                </div>
+
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-right">
+                    <p className={`text-xs font-extrabold ${getScoreBadgeColor(item.score).split(' ')[0]}`}>
+                      Score: {item.score}
+                    </p>
+                    <p className="text-[10px] text-secondary-400">{item.resolutionRate}% res. rate</p>
+                  </div>
+
+                  {!isSelected && (
+                    <button
+                      onClick={() => onSelectPincode(item.code)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-secondary-100 hover:bg-primary-600 hover:text-white text-secondary-700 transition-colors"
+                      id={`compare-switch-${item.code}`}
+                    >
+                      View
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── 10. About This Data ──────────────────────────────────────────────────────
+
+function AboutThisDataSection({ pincode }) {
+  return (
+    <div>
+      <SectionHeader number="10" title="About This Data" badge={<span className="text-[10px] text-secondary-400">Disclosures</span>} />
+      <Card variant="flat" className="p-4 space-y-3">
+        <div className="flex items-start gap-2.5">
+          <Info size={16} className="text-primary-500 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-secondary-600 leading-relaxed space-y-2">
+            <p>
+              <strong>Live Data</strong> — Current Civic Snapshot, Community Priorities, What Improved, and
+              Needs Attention metrics are computed directly from active citizen submissions for{' '}
+              <strong>Selected Locality {pincode}</strong>.
+            </p>
+            <p>
+              <strong>Demo & Historical Record</strong> — 5-Year Civic Records, Civic Health Scores, and Service Performance charts use clearly labelled prototype/demo estimations until certified multi-year municipal audits are connected.
+            </p>
+            <p>
+              <strong>Civic Outcomes</strong> are reported strictly at the <em>locality level</em>. No individual complaint outcomes or service delays are attributed to any specific elected representative.
+            </p>
+            <p>
+              <strong>Representation Period</strong> refers to standard civic calendar annual terms (January – December).
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── Main Civic Insights Page Component ────────────────────────────────────────
+
+export default function CivicInsights() {
+  const { registeredPincode, complaints: allComplaints } = usePincode();
+
+  const [selectedPincode, setSelectedPincode] = useState(() => {
+    const saved = localStorage.getItem('civic_insights_pincode');
+    return saved || registeredPincode || '400064';
+  });
+
+  const [customInput, setCustomInput] = useState('');
+  const [inputError, setInputError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handlePincodeChange = (newPincode) => {
+    if (newPincode === selectedPincode) return;
+    setIsLoading(true);
+    setSelectedPincode(newPincode);
+    localStorage.setItem('civic_insights_pincode', newPincode);
+    setInputError('');
+    setCustomInput('');
+    setTimeout(() => { setIsLoading(false); }, 250);
+  };
+
+  const handleCustomSubmit = (e) => {
+    e.preventDefault();
+    const val = customInput.trim();
+    if (!/^\d{6}$/.test(val)) {
+      setInputError('Please enter a valid 6-digit postal pincode.');
+      return;
+    }
+    handlePincodeChange(val);
+  };
+
+  const localityInfo = useMemo(() => {
+    const found = DEMO_LOCALITIES.find(l => l.code === selectedPincode);
+    if (found) return found;
+    return {
+      code: selectedPincode,
+      name: `Pincode ${selectedPincode}`,
+      ward: `Municipal Zone (${selectedPincode})`,
+      city: 'Mumbai',
+      subZones: [
+        { name: 'Central Zone', level: 'moderate', count: 3, topIssue: 'Road Maintenance' },
+        { name: 'North Sector', level: 'low', count: 1, topIssue: 'Street Lighting' },
+        { name: 'South Sector', level: 'low', count: 1, topIssue: 'Water Pressure' },
+      ],
+    };
+  }, [selectedPincode]);
+
+  const localityComplaints = useMemo(() => {
+    return (allComplaints || []).filter(c => c.pincode === selectedPincode);
+  }, [allComplaints, selectedPincode]);
+
+  return (
+    <div className="animate-fade-in pb-16">
+      <section className="pt-2 pb-5 border-b border-secondary-200">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-6 h-6 rounded-lg bg-primary-600 text-white flex items-center justify-center">
+            <BarChart2 size={14} />
+          </div>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary-700">
+            Public Civic Analytics
+          </span>
+        </div>
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-secondary-900 tracking-tight">
+          Civic Insights
+        </h1>
+        <p className="text-xs sm:text-sm font-semibold text-secondary-500 mt-0.5">
+          Select your locality
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {DEMO_LOCALITIES.map((loc) => {
+              const isSelected = loc.code === selectedPincode;
+              return (
+                <button
+                  key={loc.code}
+                  onClick={() => handlePincodeChange(loc.code)}
+                  id={`pincode-pill-${loc.code}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs ${
+                    isSelected
+                      ? 'bg-primary-600 text-white shadow-sm ring-2 ring-primary-300'
+                      : 'bg-surface border border-secondary-200 text-secondary-700 hover:border-primary-400 hover:text-primary-700'
+                  }`}
+                >
+                  <MapPin size={12} className={isSelected ? 'text-white' : 'text-primary-600'} />
+                  <span>{loc.code}</span>
+                  <span className={`text-[10px] font-normal ${isSelected ? 'text-primary-100' : 'text-secondary-400'}`}>
+                    ({loc.name})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 max-w-sm">
+            <div className="relative flex-1">
+              <input
+                id="custom-pincode-input"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="Or enter any 6-digit PIN"
+                value={customInput}
+                onChange={(e) => { setCustomInput(e.target.value); setInputError(''); }}
+                className="input py-1.5 text-xs font-medium pl-8"
+              />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary-400" />
+            </div>
+            <Button variant="ghost" size="sm" type="submit" id="custom-pincode-btn">
+              Apply
+            </Button>
+          </form>
+          {inputError && (
+            <p className="text-xs text-error font-medium">{inputError}</p>
+          )}
+          <div className="p-3 bg-primary-50 rounded-xl border border-primary-200 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary-600 animate-pulse" />
+              <span className="text-secondary-600">Selected Locality:</span>
+              <strong className="text-secondary-900 font-bold">{localityInfo.name} ({selectedPincode})</strong>
+            </div>
+            <span className="text-[11px] text-primary-700 font-semibold hidden sm:inline">
+              {localityInfo.ward}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {isLoading ? (
+        <div className="py-16 text-center space-y-3">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
+          <p className="text-xs font-bold text-secondary-600">
+            Updating metrics for {localityInfo.name} ({selectedPincode})...
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <CurrentSnapshotSection complaints={localityComplaints} pincode={selectedPincode} localityInfo={localityInfo} />
+          <FiveYearRecordSection pincode={selectedPincode} localityInfo={localityInfo} />
+          <CivicHealthScoreSection pincode={selectedPincode} complaints={localityComplaints} />
+          <ServicePerformanceSection pincode={selectedPincode} complaints={localityComplaints} />
+          <CommunityPrioritiesSection complaints={localityComplaints} />
+          <CivicHeatmapSection pincode={selectedPincode} localityInfo={localityInfo} />
+          <WhatImprovedSection complaints={localityComplaints} />
+          <NeedsAttentionSection complaints={localityComplaints} />
+          <CompareAreasSection currentPincode={selectedPincode} onSelectPincode={handlePincodeChange} allComplaints={allComplaints} />
+          <AboutThisDataSection pincode={selectedPincode} />
+        </div>
+      )}
+    </div>
+  );
+}

@@ -14,6 +14,7 @@ const Report = lazy(() => import('./pages/citizen/Report'));
 const ComplaintDetail = lazy(() => import('./pages/citizen/ComplaintDetail'));
 const MyComplaints = lazy(() => import('./pages/citizen/MyComplaints'));
 const Profile = lazy(() => import('./pages/citizen/Profile'));
+const CivicInsights = lazy(() => import('./pages/citizen/CivicInsights'));
 
 // Municipal pages
 const MunicipalLogin = lazy(() => import('./pages/municipal/Login'));
@@ -50,6 +51,7 @@ export default function App() {
                 <Route path="/complaint/:id" element={<ComplaintDetail />} />
                 <Route path="/my-complaints" element={<MyComplaints />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/insights" element={<CivicInsights />} />
               </Route>
 
               {/* ── Municipal login (no layout wrapper) ─────────────────────── */}
