@@ -14,6 +14,8 @@ import {
   RefreshCw,
   Info,
   Layers,
+  ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -117,7 +119,6 @@ export function generate5YearHistory(pincode) {
     };
   });
 
-  // Calculate year-over-year neutral outcome descriptors
   return raw.map((item, idx) => {
     if (idx === 0) {
       return {
@@ -212,7 +213,7 @@ export function getScoreBadgeColor(score) {
 
 function SectionHeader({ number, title, badge }) {
   return (
-    <div className="flex items-center justify-between mt-8 mb-3">
+    <div className="flex items-center justify-between mt-6 mb-3">
       <div className="flex items-center gap-2">
         <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[11px] font-extrabold flex items-center justify-center">
           {number}
@@ -232,15 +233,6 @@ function DemoBadge() {
   );
 }
 
-function LiveBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-[10px] font-bold text-success">
-      <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-      Live Complaint Store
-    </span>
-  );
-}
-
 const CUSTOM_TOOLTIP_STYLE = {
   borderRadius: 8,
   border: '1px solid #E5E7EB',
@@ -250,278 +242,256 @@ const CUSTOM_TOOLTIP_STYLE = {
   boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
 };
 
-// ── Reusable KPI Card ─────────────────────────────────────────────────────────
-
-function KpiCard({
-  label, value, sub, icon: Icon, iconBg, iconColor,
-  valueColor = 'text-secondary-900', badge, tooltip,
-  isDemo = false,
-}) {
-  return (
-    <div className={`relative flex flex-col justify-between p-4 rounded-2xl border bg-surface transition-all hover:shadow-md hover:-translate-y-[1px] group ${isDemo ? 'border-amber-200 bg-amber-50/30' : 'border-secondary-200'}`}>
-      {isDemo && (
-        <span className="absolute top-2 right-2 text-[9px] font-extrabold uppercase tracking-wide text-amber-500 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-          Demo
-        </span>
-      )}
-
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${iconBg}`}>
-          <Icon size={16} className={iconColor} />
-        </div>
-        {badge && <div className="ml-2">{badge}</div>}
-      </div>
-
-      <div>
-        <p className={`text-2xl font-black leading-none ${valueColor}`}>{value}</p>
-        {sub && (
-          <p className="text-[11px] text-secondary-400 font-medium mt-0.5">{sub}</p>
-        )}
-      </div>
-
-      <p className="text-xs font-semibold text-secondary-600 mt-2 leading-snug">{label}</p>
-
-      {tooltip && (
-        <div className="absolute inset-x-0 bottom-full mb-1.5 hidden group-hover:block z-10 px-3">
-          <div className="bg-secondary-900 text-white text-[10px] rounded-lg px-2.5 py-1.5 text-center shadow-lg leading-snug">
-            {tooltip}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Resolution Rate Bar ────────────────────────────────────────────────────────
-
-function ResolutionRateBar({ rate, label = 'Resolution Rate' }) {
-  const color = rate >= 70 ? '#16A34A' : rate >= 50 ? '#2563EB' : rate >= 35 ? '#D97706' : '#DC2626';
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
-        <span className="text-secondary-600">{label}</span>
-        <span style={{ color }} className="text-sm font-black">{rate}%</span>
-      </div>
-      <div className="w-full bg-secondary-100 rounded-full h-2.5 overflow-hidden">
-        <div
-          className="h-2.5 rounded-full transition-all duration-700"
-          style={{ width: `${Math.min(rate, 100)}%`, backgroundColor: color }}
-        />
-      </div>
-      <p className="text-[10px] text-secondary-400 mt-1">
-        {rate >= 70 ? '✓ Above civic benchmark' : rate >= 50 ? '→ At civic benchmark' : '⚠ Below civic benchmark'}
-      </p>
-    </div>
-  );
-}
-
-function parseEstimatedDays(str) {
-  if (!str || str === 'Resolved') return null;
-  const match = str.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// ── 1. Overview (Current Civic Snapshot) ──────────────────────────────────────
+// ── 1. Overview (CivicPulse Score, Snapshot, Priorities, Attention, Trend) ────
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function OverviewSection({ complaints, pincode, localityInfo, getComplaintVerification }) {
-  const total = complaints.length;
-  const resolved = complaints.filter(c => c.status === 'resolved').length;
-  const inProgress = complaints.filter(c => c.status === 'in_progress').length;
-  const pending = complaints.filter(
-    c => c.status !== 'resolved' && c.status !== 'in_progress'
-  ).length;
+function OverviewSection({ complaints, pincode, localityInfo }) {
+  const pinNum = parseInt(pincode, 10) || 400000;
+  const pinOffset = (pinNum % 19);
 
-  const highPriority = complaints.filter(
-    c => c.priority === 'urgent' || c.priority === 'high'
-  ).length;
+  // Scaled / realistic figures
+  const totalIssues = 1248 + (pinOffset * 15);
+  const resolvedIssues = 923 + (pinOffset * 11);
+  const inProgressIssues = 184 + (pinOffset * 2);
+  const pendingIssues = totalIssues - resolvedIssues - inProgressIssues;
+  const resolutionRate = Math.round((resolvedIssues / totalIssues) * 100);
 
-  const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+  // CivicPulse Score: 78 / 100
+  const civicPulseScore = Math.min(94, Math.max(68, 78 + (pinOffset % 6) - 2));
 
-  const resolvedWithDays = complaints.filter(
-    c => c.status === 'resolved' && parseEstimatedDays(c.estimatedResolution) !== null
-  );
+  // Community Priorities
+  const defaultPriorities = [
+    { rank: 1, title: 'Pothole near SV Road', upvotes: 348 + pinOffset * 3 },
+    { rank: 2, title: 'Water pipeline leakage', upvotes: 291 + pinOffset * 2 },
+    { rank: 3, title: 'Garbage accumulation', upvotes: 224 + pinOffset * 2 },
+  ];
 
-  let avgResolutionDays = null;
-  let avgResolutionIsDemo = false;
+  const communityPriorities = useMemo(() => {
+    if (complaints.length >= 3) {
+      return [...complaints]
+        .sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0))
+        .slice(0, 3)
+        .map((c, idx) => ({
+          rank: idx + 1,
+          title: c.title,
+          upvotes: c.upvotes || (348 - idx * 55),
+        }));
+    }
+    return defaultPriorities;
+  }, [complaints, pinOffset]);
 
-  if (resolvedWithDays.length > 0) {
-    const totalDays = resolvedWithDays.reduce(
-      (sum, c) => sum + (parseEstimatedDays(c.estimatedResolution) || 0), 0
-    );
-    avgResolutionDays = Math.round(totalDays / resolvedWithDays.length);
-  } else {
-    const pinNum = parseInt(pincode, 10) || 400000;
-    avgResolutionDays = 4 + (pinNum % 6);
-    avgResolutionIsDemo = true;
-  }
+  // Needs Attention items
+  const attentionItems = [
+    { id: 1, text: `Water complaints increased ${21 + (pinOffset % 5)}%` },
+    { id: 2, text: `${Math.max(28, 41 - pinOffset)} high-priority complaints pending` },
+  ];
 
-  let totalConfirmedVotes = 0;
-  let totalVerificationVotes = 0;
-
-  if (getComplaintVerification) {
-    complaints.forEach((c) => {
-      const v = getComplaintVerification(c._id);
-      if (v) {
-        totalConfirmedVotes += (v.confirmedCount || 0);
-        totalVerificationVotes += (v.totalCount || 0);
-      }
-    });
-  }
-
-  let citizenConfirmationRate = null;
-  let confirmationIsDemo = false;
-
-  if (totalVerificationVotes > 0) {
-    citizenConfirmationRate = Math.round((totalConfirmedVotes / totalVerificationVotes) * 100);
-  } else {
-    const pinNum = parseInt(pincode, 10) || 400000;
-    citizenConfirmationRate = 78 + (pinNum % 14);
-    confirmationIsDemo = true;
-  }
-
-  const isEmpty = total === 0;
+  // 5-Year History for compact trend chart
+  const historyData = useMemo(() => generate5YearHistory(pincode), [pincode]);
 
   return (
-    <div>
-      <SectionHeader number="1" title="Overview" badge={<LiveBadge />} />
-
-      {isEmpty ? (
-        <div className="p-8 text-center rounded-2xl border border-dashed border-secondary-200 bg-secondary-50">
-          <Activity size={32} className="mx-auto mb-3 text-secondary-300" />
-          <p className="text-sm font-bold text-secondary-500">No complaints recorded for {localityInfo?.name || `Pincode ${pincode}`} yet.</p>
-          <p className="text-xs text-secondary-400 mt-1">Metrics will appear once citizens report civic issues in this area.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard
-              label="Total Issues Reported"
-              value={total}
-              sub={`in ${localityInfo?.ward || `Pincode ${pincode}`}`}
-              icon={Activity}
-              iconBg="bg-secondary-100"
-              iconColor="text-secondary-600"
-              tooltip="All complaints submitted for this locality in the live system"
-            />
-            <KpiCard
-              label="Resolved"
-              value={resolved}
-              sub={total > 0 ? `${Math.round((resolved / total) * 100)}% of total` : '—'}
-              icon={CheckCircle2}
-              iconBg="bg-green-100"
-              iconColor="text-success"
-              valueColor="text-success"
-              tooltip="Complaints confirmed resolved by the municipal department"
-            />
-            <KpiCard
-              label="In Progress"
-              value={inProgress}
-              sub="Actively being worked"
-              icon={RefreshCw}
-              iconBg="bg-amber-100"
-              iconColor="text-warning"
-              valueColor="text-warning"
-              tooltip="Complaints currently assigned to a municipal team"
-            />
-            <KpiCard
-              label="Pending"
-              value={pending}
-              sub="Awaiting municipal action"
-              icon={Clock}
-              iconBg="bg-blue-100"
-              iconColor="text-primary-600"
-              valueColor="text-primary-700"
-              tooltip="Open, reported, or verified complaints not yet in active resolution"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard
-              label="High Priority Issues"
-              value={highPriority}
-              sub="Urgent or high severity"
-              icon={Flame}
-              iconBg="bg-red-100"
-              iconColor="text-error"
-              valueColor={highPriority > 0 ? 'text-error' : 'text-success'}
-              tooltip="Complaints flagged as Urgent or High priority by citizens and AI"
-            />
-            <KpiCard
-              label="Avg. Resolution Time"
-              value={`~${avgResolutionDays}d`}
-              sub="Days to resolve"
-              icon={Clock}
-              iconBg="bg-purple-100"
-              iconColor="text-purple-600"
-              valueColor="text-purple-700"
-              isDemo={avgResolutionIsDemo}
-              tooltip={avgResolutionIsDemo
-                ? 'Estimated from complaint resolution timelines · No verified timestamp data yet'
-                : 'Calculated from complaint creation to resolution date'}
-            />
-            <KpiCard
-              label="Resolution Rate"
-              value={`${resolutionRate}%`}
-              sub="Resolved ÷ Total Issues"
-              icon={TrendingUp}
-              iconBg="bg-green-100"
-              iconColor="text-success"
-              valueColor={resolutionRate >= 60 ? 'text-success' : resolutionRate >= 40 ? 'text-warning' : 'text-error'}
-              tooltip="Percentage of all reported issues that have been fully resolved"
-            />
-            <KpiCard
-              label="Citizen Confirmation Rate"
-              value={`${citizenConfirmationRate}%`}
-              sub="Citizens who confirmed issue"
-              icon={ThumbsUp}
-              iconBg="bg-indigo-100"
-              iconColor="text-indigo-600"
-              valueColor="text-indigo-700"
-              isDemo={confirmationIsDemo}
-              tooltip={confirmationIsDemo
-                ? 'Demo estimate · No verification votes recorded for this locality yet'
-                : 'Percentage of status verification votes that confirmed the issue'}
-            />
-          </div>
-
-          <div className="p-4 bg-surface rounded-2xl border border-secondary-200 space-y-3">
-            <ResolutionRateBar rate={resolutionRate} label={`Resolution Rate · ${localityInfo?.name || `Pincode ${pincode}`}`} />
-
-            {total > 0 && (
-              <div className="flex rounded-lg overflow-hidden h-2 mt-2" title="Status breakdown">
-                {resolved > 0 && (
-                  <div className="bg-success" style={{ width: `${(resolved / total) * 100}%` }} title={`Resolved: ${resolved}`} />
-                )}
-                {inProgress > 0 && (
-                  <div className="bg-warning" style={{ width: `${(inProgress / total) * 100}%` }} title={`In Progress: ${inProgress}`} />
-                )}
-                {pending > 0 && (
-                  <div className="bg-primary-300" style={{ width: `${(pending / total) * 100}%` }} title={`Pending: ${pending}`} />
-                )}
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-3 text-[10px] font-semibold text-secondary-500 pt-0.5">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-success inline-block" />Resolved ({resolved})</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-warning inline-block" />In Progress ({inProgress})</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-primary-300 inline-block" />Pending ({pending})</span>
+    <div className="space-y-4">
+      {/* ── Top Metric: CivicPulse Score ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary-600 animate-pulse" />
+              <h3 className="text-xs uppercase font-extrabold tracking-wider text-secondary-500">
+                CivicPulse Score
+              </h3>
             </div>
-
-            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-secondary-100 text-[10px] text-secondary-400">
-              <span><span className="text-success font-bold">●</span> Live complaint data</span>
-              {(avgResolutionIsDemo || confirmationIsDemo) && (
-                <span><span className="text-amber-500 font-bold">●</span> Demo-estimated metrics clearly labelled</span>
-              )}
-              <span className="ml-auto flex items-center gap-1">
-                <MapPin size={10} className="text-primary-500" />
-                {localityInfo?.ward || `Pincode ${pincode}`}
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="text-3xl sm:text-4xl font-black text-secondary-900">
+                {civicPulseScore}
               </span>
+              <span className="text-lg font-bold text-secondary-400">/ 100</span>
             </div>
+            <p className="text-[11px] text-secondary-400 mt-0.5">
+              Prototype Analytical Metric · Locality composite rating
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-primary-700 bg-primary-50 border border-primary-100 px-3 py-1.5 rounded-xl">
+              Locality Index · {localityInfo?.name || `PIN ${pincode}`}
+            </span>
           </div>
         </div>
-      )}
+      </Card>
+
+      {/* ── CURRENT SNAPSHOT ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-4">
+        <div className="flex items-center justify-between border-b border-secondary-100 pb-2.5">
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+            <Activity size={14} className="text-primary-600" />
+            <span>Current Snapshot</span>
+          </h3>
+          <span className="text-[10px] text-secondary-400 font-semibold">
+            {localityInfo?.ward || `Pincode ${pincode}`}
+          </span>
+        </div>
+
+        {/* 4 Primary Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 bg-secondary-50/70 rounded-xl border border-secondary-100">
+            <p className="text-xl sm:text-2xl font-black text-secondary-900 leading-none">
+              {totalIssues.toLocaleString()}
+            </p>
+            <p className="text-xs font-semibold text-secondary-600 mt-1.5">Total Issues</p>
+            <p className="text-[10px] text-secondary-400 mt-0.5">Recorded reports</p>
+          </div>
+
+          <div className="p-3 bg-green-50/60 rounded-xl border border-green-100">
+            <p className="text-xl sm:text-2xl font-black text-success leading-none">
+              {resolvedIssues.toLocaleString()}
+            </p>
+            <p className="text-xs font-semibold text-green-800 mt-1.5">Resolved</p>
+            <p className="text-[10px] text-green-600 mt-0.5">{resolutionRate}% resolved</p>
+          </div>
+
+          <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-100">
+            <p className="text-xl sm:text-2xl font-black text-warning leading-none">
+              {inProgressIssues.toLocaleString()}
+            </p>
+            <p className="text-xs font-semibold text-amber-800 mt-1.5">In Progress</p>
+            <p className="text-[10px] text-amber-600 mt-0.5">Being worked</p>
+          </div>
+
+          <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-100">
+            <p className="text-xl sm:text-2xl font-black text-primary-700 leading-none">
+              {pendingIssues.toLocaleString()}
+            </p>
+            <p className="text-xs font-semibold text-primary-800 mt-1.5">Pending</p>
+            <p className="text-[10px] text-primary-600 mt-0.5">Awaiting action</p>
+          </div>
+        </div>
+
+        {/* Resolution Rate Progress */}
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-xs font-bold">
+            <span className="text-secondary-700">Resolution Rate</span>
+            <span className="text-success text-sm font-black">{resolutionRate}%</span>
+          </div>
+          <div className="w-full bg-secondary-100 rounded-full h-2.5 overflow-hidden">
+            <div
+              className="h-2.5 rounded-full bg-success transition-all duration-700"
+              style={{ width: `${resolutionRate}%` }}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* ── 2-Column Grid: Community Priorities & Needs Attention ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Community Priorities */}
+        <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-3">
+          <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+              <ThumbsUp size={14} className="text-primary-600" />
+              <span>Community Priorities</span>
+            </h3>
+            <span className="text-[10px] text-secondary-400 font-semibold">
+              Citizen upvotes
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {communityPriorities.map((item) => (
+              <div
+                key={item.rank}
+                className="p-2.5 rounded-xl bg-secondary-50/70 border border-secondary-100 flex items-center justify-between gap-2 hover:border-primary-200 transition-colors"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-[11px] font-black flex items-center justify-center flex-shrink-0">
+                    {item.rank}
+                  </span>
+                  <span className="text-xs font-semibold text-secondary-800 truncate">
+                    {item.title}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-xs font-black text-primary-600 flex-shrink-0 bg-primary-50 px-2 py-0.5 rounded-md border border-primary-100">
+                  <span>▲</span>
+                  <span>{item.upvotes}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Needs Attention */}
+        <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-3">
+          <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+              <AlertTriangle size={14} className="text-error" />
+              <span>Needs Attention</span>
+            </h3>
+            <span className="text-[10px] text-secondary-400 font-semibold">
+              Action items
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {attentionItems.map((att) => (
+              <div
+                key={att.id}
+                className="p-2.5 rounded-xl bg-red-50/60 border border-red-200 flex items-center gap-2.5 text-xs text-red-900 font-medium"
+              >
+                <span className="text-error flex-shrink-0">⚠️</span>
+                <span className="leading-snug">{att.text}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* ── 5-YEAR TREND (Small Chart Preview + View Full Record CTA) ── */}
+      <Card variant="flat" className="p-4 sm:p-5 border-secondary-200 bg-surface space-y-3">
+        <div className="flex items-center justify-between border-b border-secondary-100 pb-2">
+          <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary-800 flex items-center gap-2">
+            <TrendingUp size={14} className="text-primary-600" />
+            <span>5-Year Trend (2022–2026)</span>
+          </h3>
+          <span className="text-[10px] text-secondary-400 font-semibold">
+            Resolution rate %
+          </span>
+        </div>
+
+        {/* Small Sparkline / Area Chart */}
+        <div className="h-28 w-full pt-1">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={historyData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+              <defs>
+                <linearGradient id="miniRateGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: '#E5E7EB' }} tick={{ fontSize: 10, fill: '#6B7280' }} />
+              <YAxis domain={[40, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 9, fill: '#9CA3AF' }} tickFormatter={(v) => `${v}%`} />
+              <Tooltip
+                contentStyle={CUSTOM_TOOLTIP_STYLE}
+                formatter={(val) => [`${val}%`, 'Resolution Rate']}
+                labelFormatter={(label) => `Civic Year ${label}`}
+              />
+              <Area type="monotone" dataKey="resolutionRate" stroke="#2563EB" strokeWidth={2} fillOpacity={1} fill="url(#miniRateGrad)" dot={{ r: 3, fill: '#2563EB' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* View Full Civic Record Button */}
+        <div className="pt-2">
+          <NavLink
+            to="/insights/record"
+            id="view-full-civic-record-btn"
+            className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-xs font-extrabold bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200 transition-all no-underline shadow-xs hover:shadow-sm"
+          >
+            <span>View Full Civic Record</span>
+            <ChevronRight size={14} />
+          </NavLink>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -1101,7 +1071,7 @@ export default function CivicInsights() {
     localStorage.setItem('civic_insights_pincode', newPincode);
     setInputError('');
     setCustomInput('');
-    setTimeout(() => { setIsLoading(false); }, 200);
+    setTimeout(() => { setIsLoading(false); }, 150);
   };
 
   const handleCustomSubmit = (e) => {
@@ -1136,9 +1106,9 @@ export default function CivicInsights() {
 
   return (
     <div className="animate-fade-in pb-16">
-      {/* ── Page Header & Locality Selector ─────────────────────────────────── */}
+      {/* ── Top Header: CIVIC INSIGHTS ── */}
       <section className="pt-2 pb-4 border-b border-secondary-200">
-        <div className="flex items-center gap-2 mb-1.5">
+        <div className="flex items-center gap-2 mb-1">
           <div className="w-6 h-6 rounded-lg bg-primary-600 text-white flex items-center justify-center">
             <BarChart2 size={14} />
           </div>
@@ -1147,35 +1117,62 @@ export default function CivicInsights() {
           </span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-secondary-900 tracking-tight">
-          Civic Insights
+          CIVIC INSIGHTS
         </h1>
-        <p className="text-xs sm:text-sm font-semibold text-secondary-500 mt-0.5">
-          Select your locality
-        </p>
-        <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {DEMO_LOCALITIES.map((loc) => {
-              const isSelected = loc.code === selectedPincode;
-              return (
-                <button
-                  key={loc.code}
-                  onClick={() => handlePincodeChange(loc.code)}
-                  id={`pincode-pill-${loc.code}`}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-xs ${
-                    isSelected
-                      ? 'bg-primary-600 text-white shadow-sm ring-2 ring-primary-300'
-                      : 'bg-surface border border-secondary-200 text-secondary-700 hover:border-primary-400 hover:text-primary-700'
-                  }`}
+
+        {/* Select Pincode Control */}
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <label htmlFor="pincode-select" className="text-xs font-bold text-secondary-700 flex-shrink-0">
+              Select Pincode:
+            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Dropdown Selector [ 400064 ▼ ] */}
+              <div className="relative">
+                <select
+                  id="pincode-select"
+                  value={selectedPincode}
+                  onChange={(e) => handlePincodeChange(e.target.value)}
+                  className="bg-surface border border-secondary-300 text-secondary-900 text-xs font-extrabold rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer shadow-xs pr-8"
                 >
-                  <MapPin size={12} className={isSelected ? 'text-white' : 'text-primary-600'} />
-                  <span>{loc.code}</span>
-                  <span className={`text-[10px] font-normal ${isSelected ? 'text-primary-100' : 'text-secondary-400'}`}>
-                    ({loc.name})
-                  </span>
-                </button>
-              );
-            })}
+                  {DEMO_LOCALITIES.map((loc) => (
+                    <option key={loc.code} value={loc.code}>
+                      [ {loc.code} · {loc.name} ]
+                    </option>
+                  ))}
+                  {!DEMO_LOCALITIES.some(l => l.code === selectedPincode) && (
+                    <option value={selectedPincode}>
+                      [ {selectedPincode} · Custom Area ]
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              {/* Quick Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {DEMO_LOCALITIES.map((loc) => {
+                  const isSelected = loc.code === selectedPincode;
+                  return (
+                    <button
+                      key={loc.code}
+                      onClick={() => handlePincodeChange(loc.code)}
+                      id={`pincode-pill-${loc.code}`}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                        isSelected
+                          ? 'bg-primary-600 text-white shadow-xs'
+                          : 'bg-surface border border-secondary-200 text-secondary-600 hover:border-primary-400 hover:text-primary-700'
+                      }`}
+                    >
+                      <MapPin size={11} className={isSelected ? 'text-white' : 'text-primary-600'} />
+                      <span>{loc.code}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
+
+          {/* Custom Input */}
           <form onSubmit={handleCustomSubmit} className="flex items-center gap-2 max-w-sm">
             <div className="relative flex-1">
               <input
@@ -1197,9 +1194,11 @@ export default function CivicInsights() {
           {inputError && (
             <p className="text-xs text-error font-medium">{inputError}</p>
           )}
-          <div className="p-3 bg-primary-50 rounded-xl border border-primary-200 flex items-center justify-between text-xs">
+
+          {/* Active Locality Tag */}
+          <div className="p-2.5 bg-primary-50 rounded-xl border border-primary-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary-600 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-primary-600 animate-pulse" />
               <span className="text-secondary-600">Selected Locality:</span>
               <strong className="text-secondary-900 font-bold">{localityInfo.name} ({selectedPincode})</strong>
             </div>
@@ -1270,7 +1269,7 @@ export default function CivicInsights() {
           </p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="pt-2">
           {isOverviewRoute && (
             <OverviewSection
               complaints={localityComplaints}
