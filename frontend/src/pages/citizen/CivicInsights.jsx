@@ -1001,7 +1001,7 @@ function AboutThisDataSection({ pincode }) {
 // ── Main Civic Insights Page Component ────────────────────────────────────────
 
 export default function CivicInsights() {
-  const { registeredPincode, complaints: allComplaints } = usePincode();
+  const { registeredPincode, complaints: allComplaints, getComplaintVerification } = usePincode();
 
   const [selectedPincode, setSelectedPincode] = useState(() => {
     const saved = localStorage.getItem('civic_insights_pincode');
@@ -1136,7 +1136,7 @@ export default function CivicInsights() {
         </div>
       ) : (
         <div className="space-y-6">
-          <CurrentSnapshotSection complaints={localityComplaints} pincode={selectedPincode} localityInfo={localityInfo} />
+          <CurrentSnapshotSection complaints={localityComplaints} pincode={selectedPincode} localityInfo={localityInfo} getComplaintVerification={getComplaintVerification} />
           <FiveYearRecordSection pincode={selectedPincode} localityInfo={localityInfo} />
           <CivicHealthScoreSection pincode={selectedPincode} complaints={localityComplaints} />
           <ServicePerformanceSection pincode={selectedPincode} complaints={localityComplaints} />
