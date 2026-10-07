@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, ShieldAlert, BarChart2 } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import { usePincode } from '../../context/PincodeContext';
+import { useAuth } from '../../context/AuthContext';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
@@ -16,7 +17,9 @@ const NAV_ITEMS = [
 ];
 
 function CitizenNav() {
-  const { registeredPincode, setRegisteredPincode, currentUser, loginAsUser, DEMO_USERS } = usePincode();
+  const navigate = useNavigate();
+  const { registeredPincode, setRegisteredPincode } = usePincode();
+  const { currentUser, isAuthenticated, logout } = useAuth();
   const [pincodeModalOpen, setPincodeModalOpen] = useState(false);
   const [tempPincode, setTempPincode] = useState(registeredPincode);
   const [error, setError] = useState('');
@@ -32,6 +35,8 @@ function CitizenNav() {
     setPincodeModalOpen(false);
   };
 
+  const displayName = currentUser?.full_name || currentUser?.name || 'Citizen';
+
   return (
     <>
       {/* ── Top Header (desktop) ─────────────────────────────────────────── */}
@@ -46,35 +51,46 @@ function CitizenNav() {
 
           {/* Registered Pincode Badge */}
           <button
-            onClick={() => { setTempPincode(registeredPincode); setPincodeModalOpen(true); }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-50 hover:bg-primary-100 border border-primary-200 text-xs font-bold text-primary-700 transition-colors"
-            title="Click to update your registered voting pincode"
+            onClick={() => {
+              setTempPincode(registeredPincode);
+              setPincodeModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-50 hover:bg-primary-100 border border-primary-200 text-xs font-bold text-primary-700 transition-colors cursor-pointer"
+            title="Click to update your voting pincode"
           >
             <MapPin size={13} className="text-primary-600" />
-            <span>Residing in {registeredPincode}</span>
+            <span>Zone: {registeredPincode}</span>
             <Edit2 size={11} className="text-primary-500 ml-0.5" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Demo User Switcher */}
-          <div className="flex items-center gap-1.5 bg-primary-50 px-2 py-1 rounded-lg border border-primary-200 text-xs">
-            <span className="text-[10px] font-extrabold text-primary-800 uppercase">Demo User:</span>
-            <select
-              value={currentUser?.email || 'citizen@demo.com'}
-              onChange={(e) => {
-                const u = loginAsUser(e.target.value);
-                if (u.role === 'officer') window.location.href = '/municipal/dashboard';
-              }}
-              className="bg-white border border-primary-300 text-secondary-900 text-xs font-extrabold rounded px-1.5 py-0.5 focus:outline-none cursor-pointer shadow-xs"
+        <div className="flex items-center gap-3">
+          {/* User Status / Login Button */}
+          {isAuthenticated && currentUser?.email ? (
+            <div className="flex items-center gap-2 bg-secondary-50 px-2.5 py-1 rounded-lg border border-secondary-200 text-xs">
+              <div className="w-5 h-5 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-[10px]">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+              <span className="font-bold text-secondary-800 max-w-[120px] truncate">{displayName}</span>
+              <button
+                onClick={logout}
+                className="text-secondary-400 hover:text-red-600 p-0.5 ml-1 transition-colors cursor-pointer"
+                title="Sign out"
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          ) : (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={LogIn}
+              onClick={() => navigate('/login')}
+              className="text-xs font-bold py-1.5"
             >
-              {(DEMO_USERS || []).map((u) => (
-                <option key={u.email} value={u.email}>
-                  {u.name} ({u.role === 'officer' ? 'Officer' : `PIN ${u.pincode}`})
-                </option>
-              ))}
-            </select>
-          </div>
+              Sign In
+            </Button>
+          )}
 
           <nav className="flex items-center gap-1">
             {NAV_ITEMS.map(({ to, label, desktopLabel, icon: Icon, id }) => (
@@ -115,13 +131,28 @@ function CitizenNav() {
           <span className="text-sm font-bold text-secondary-900">CivicPulse</span>
         </NavLink>
 
-        <button
-          onClick={() => { setTempPincode(registeredPincode); setPincodeModalOpen(true); }}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-50 border border-primary-200 text-xs font-bold text-primary-700"
-        >
-          <MapPin size={12} className="text-primary-600" />
-          <span>PIN: {registeredPincode}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setTempPincode(registeredPincode);
+              setPincodeModalOpen(true);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-50 border border-primary-200 text-xs font-bold text-primary-700"
+          >
+            <MapPin size={12} className="text-primary-600" />
+            <span>PIN: {registeredPincode}</span>
+          </button>
+          {!isAuthenticated && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/login')}
+              className="text-xs font-bold py-1 px-2.5"
+            >
+              Sign In
+            </Button>
+          )}
+        </div>
       </header>
 
       {/* ── Mobile Bottom Nav ────────────────────────────────────────────── */}
@@ -158,8 +189,12 @@ function CitizenNav() {
         title="Update Registered Pincode"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setPincodeModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSavePincode}>Save Pincode</Button>
+            <Button variant="ghost" onClick={() => setPincodeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleSavePincode}>
+              Save Pincode
+            </Button>
           </>
         }
       >
@@ -169,9 +204,12 @@ function CitizenNav() {
           </p>
           <Input
             label="Your Resident Pincode (6 digits)"
-            placeholder="e.g. 560001"
+            placeholder="e.g. 110001"
             value={tempPincode}
-            onChange={(e) => { setTempPincode(e.target.value); setError(''); }}
+            onChange={(e) => {
+              setTempPincode(e.target.value);
+              setError('');
+            }}
             error={error}
             maxLength={6}
             inputMode="numeric"

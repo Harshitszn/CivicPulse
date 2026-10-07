@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { useToast } from './ToastContext';
+import { useAuth } from './AuthContext';
 
 const PincodeContext = createContext();
 
@@ -696,64 +697,34 @@ export function PincodeProvider({ children }) {
     updateComplaintDetails(complaintId, { status: newStatus });
   };
 
-  // Active Logged-in Demo User State (Default: DEMO_USERS[0])
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem('civicpulse_current_user');
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      // fallback
-    }
-    return DEMO_USERS[0];
-  });
+  const { currentUser: authUser, logout: authLogout } = useAuth();
 
-  // User's official registered pincode (Default: matches currentUser.pincode or '400064')
-  const [registeredPincode, setRegisteredPincodeState] = useState(() => {
-    try {
-      const storedUser = localStorage.getItem('civicpulse_current_user');
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        if (parsed.pincode) return parsed.pincode;
-      }
-    } catch (e) { }
-    return localStorage.getItem('civicpulse_registered_pincode') || '400064';
-  });
+  // Active Logged-in User State (Driven by backend AuthContext)
+  const currentUser = authUser || {
+    name: 'Guest Citizen',
+    email: '',
+    role: 'citizen',
+    pincode: '110001',
+    label: 'Guest',
+  };
+
+  // User's official registered pincode
+  const [localPincode, setLocalPincode] = useState('110001');
+
+  const registeredPincode = authUser?.pincode || localPincode;
+  const setRegisteredPincode = (pin) => {
+    setLocalPincode(pin);
+    localStorage.setItem('civicpulse_registered_pincode', pin);
+  };
 
   const loginAsUser = (emailOrObject) => {
-    let userToLogin;
-    if (typeof emailOrObject === 'string') {
-      const targetEmail = emailOrObject.trim().toLowerCase();
-      userToLogin = DEMO_USERS.find((u) => u.email.toLowerCase() === targetEmail);
-      if (!userToLogin) {
-        const isOfficer = targetEmail.includes('officer') || targetEmail.includes('admin') || targetEmail.includes('gov');
-        userToLogin = {
-          email: targetEmail,
-          name: isOfficer ? 'Municipal Officer' : 'Demo Resident',
-          role: isOfficer ? 'officer' : 'citizen',
-          pincode: '400064',
-          label: isOfficer ? 'Municipal Officer' : 'Citizen Resident (400064)',
-        };
-      }
-    } else {
-      userToLogin = emailOrObject;
-    }
-
-    setCurrentUser(userToLogin);
-    localStorage.setItem('civicpulse_current_user', JSON.stringify(userToLogin));
-
-    if (userToLogin.role === 'citizen') {
-      setRegisteredPincodeState(userToLogin.pincode);
-      localStorage.setItem('civicpulse_registered_pincode', userToLogin.pincode);
-    }
-
-    toast.success(`Logged in as ${userToLogin.name} (${userToLogin.role === 'officer' ? 'Officer' : `Pincode: ${userToLogin.pincode}`})`);
-    return userToLogin;
+    // Legacy helper for demo compatibility
+    toast.info('Please use the Login/Register form to authenticate with the backend');
+    return currentUser;
   };
 
   const logoutUser = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('civicpulse_current_user');
-    toast.info('Logged out');
+    authLogout();
   };
 
   // Active Pincode selected for browsing feed complaints ('all' or specific 6-digit pin)
@@ -805,14 +776,6 @@ export function PincodeProvider({ children }) {
       return {};
     }
   });
-
-  const setRegisteredPincode = (newPin) => {
-    if (!/^\d{6}$/.test(newPin)) return false;
-    setRegisteredPincodeState(newPin);
-    localStorage.setItem('civicpulse_registered_pincode', newPin);
-    toast.success(`Registered pincode updated to ${newPin}`);
-    return true;
-  };
 
   // Check pincode eligibility rule: user.registeredPincode === complaint.pincode
   const isEligibleToVote = (complaintPincode) => {

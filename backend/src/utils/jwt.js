@@ -8,7 +8,7 @@ const ApiError = require('./ApiError');
 
 /**
  * Sign an access token.
- * @param {Object} payload  Data to encode (e.g., { userId, role })
+ * @param {Object} payload  Data to encode (e.g., { id, role, email, pincode })
  * @returns {string}        Signed JWT string
  */
 function signAccessToken(payload) {
@@ -43,7 +43,7 @@ function verifyAccessToken(token) {
     });
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      throw ApiError.unauthorized('Access token has expired. Please refresh.');
+      throw ApiError.unauthorized('Access token has expired. Please log in again.');
     }
     throw ApiError.unauthorized('Invalid access token.');
   }
@@ -65,4 +65,11 @@ function verifyRefreshToken(token) {
   }
 }
 
-module.exports = { signAccessToken, signRefreshToken, verifyAccessToken, verifyRefreshToken };
+module.exports = {
+  signAccessToken,
+  signRefreshToken,
+  generateAccessToken: signAccessToken,
+  generateRefreshToken: signRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+};

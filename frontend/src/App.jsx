@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthContext';
 import { PincodeProvider } from './context/PincodeContext';
 
 // Layouts
@@ -16,7 +17,7 @@ const MyComplaints = lazy(() => import('./pages/citizen/MyComplaints'));
 const Profile = lazy(() => import('./pages/citizen/Profile'));
 const CivicInsights = lazy(() => import('./pages/citizen/CivicInsights'));
 
-// Municipal pages
+// Auth & Municipal pages
 const MunicipalLogin = lazy(() => import('./pages/municipal/Login'));
 const Dashboard = lazy(() => import('./pages/municipal/Dashboard'));
 const MunicipalComplaints = lazy(() => import('./pages/municipal/Complaints'));
@@ -40,54 +41,57 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <PincodeProvider>
-          <Suspense fallback={loadingFallback}>
-            <Routes>
-              {/* ── Citizen routes ──────────────────────────────────────────── */}
-              <Route element={<CitizenLayout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/feed" element={<Feed />} />
-                <Route path="/report" element={<Report />} />
-                <Route path="/complaint/:id" element={<ComplaintDetail />} />
-                <Route path="/my-complaints" element={<MyComplaints />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/insights" element={<CivicInsights />} />
-                <Route path="/insights/record" element={<CivicInsights />} />
-                <Route path="/insights/services" element={<CivicInsights />} />
-              </Route>
+        <AuthProvider>
+          <PincodeProvider>
+            <Suspense fallback={loadingFallback}>
+              <Routes>
+                {/* ── Citizen routes ──────────────────────────────────────────── */}
+                <Route element={<CitizenLayout />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/feed" element={<Feed />} />
+                  <Route path="/report" element={<Report />} />
+                  <Route path="/complaint/:id" element={<ComplaintDetail />} />
+                  <Route path="/my-complaints" element={<MyComplaints />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/insights" element={<CivicInsights />} />
+                  <Route path="/insights/record" element={<CivicInsights />} />
+                  <Route path="/insights/services" element={<CivicInsights />} />
+                </Route>
 
-              {/* ── Municipal login (no layout wrapper) ─────────────────────── */}
-              <Route path="/municipal/login" element={<MunicipalLogin />} />
+                {/* ── Auth / Municipal login ──────────────────────────────────── */}
+                <Route path="/login" element={<MunicipalLogin />} />
+                <Route path="/municipal/login" element={<MunicipalLogin />} />
 
-              {/* ── Municipal routes (inside MunicipalLayout) ───────────────── */}
-              <Route path="/municipal" element={<MunicipalLayout />}>
-                <Route index element={<Navigate to="/municipal/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="complaints" element={<MunicipalComplaints />} />
-                <Route path="complaints/:id" element={<MunicipalComplaintDetail />} />
-                <Route path="map" element={<MapView />} />
-                <Route path="departments" element={<Departments />} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="citizens" element={<Citizens />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
+                {/* ── Municipal routes (inside MunicipalLayout) ───────────────── */}
+                <Route path="/municipal" element={<MunicipalLayout />}>
+                  <Route index element={<Navigate to="/municipal/dashboard" replace />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="complaints" element={<MunicipalComplaints />} />
+                  <Route path="complaints/:id" element={<MunicipalComplaintDetail />} />
+                  <Route path="map" element={<MapView />} />
+                  <Route path="departments" element={<Departments />} />
+                  <Route path="analytics" element={<Analytics />} />
+                  <Route path="citizens" element={<Citizens />} />
+                  <Route path="settings" element={<Settings />} />
+                </Route>
 
-              {/* ── 404 fallback ────────────────────────────────────────────── */}
-              <Route
-                path="*"
-                element={
-                  <div className="min-h-screen flex items-center justify-center bg-background">
-                    <div className="text-center">
-                      <p className="text-6xl font-bold text-primary-600 mb-2">404</p>
-                      <p className="text-secondary-500 text-sm mb-4">Page not found</p>
-                      <a href="/" className="text-primary-600 text-sm hover:underline">Go home →</a>
+                {/* ── 404 fallback ────────────────────────────────────────────── */}
+                <Route
+                  path="*"
+                  element={
+                    <div className="min-h-screen flex items-center justify-center bg-background">
+                      <div className="text-center">
+                        <p className="text-6xl font-bold text-primary-600 mb-2">404</p>
+                        <p className="text-secondary-500 text-sm mb-4">Page not found</p>
+                        <a href="/" className="text-primary-600 text-sm hover:underline">Go home →</a>
+                      </div>
                     </div>
-                  </div>
-                }
-              />
-            </Routes>
-          </Suspense>
-        </PincodeProvider>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </PincodeProvider>
+        </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
   );

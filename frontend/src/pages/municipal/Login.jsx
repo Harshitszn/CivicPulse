@@ -1,41 +1,87 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Shield, User, Building2, MapPin, ArrowRight, Zap, CheckCircle2 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Shield, User, Building2, MapPin, ArrowRight, Lock, Mail, Phone, CheckCircle2 } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
-import { useToast } from '../../context/ToastContext';
-import { usePincode, DEMO_USERS } from '../../context/PincodeContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function MunicipalLogin() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { loginAsUser } = usePincode();
+  const location = useLocation();
+  const { login, register } = useAuth();
 
-  const [form, setForm] = useState({ email: 'officer@demo.com', password: 'demo' });
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    pincode: '110001',
+    password: '',
+  });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Perform login based on email
-  const handlePerformLogin = async (targetEmail) => {
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    setLoading(false);
-
-    const user = loginAsUser(targetEmail);
-    if (user.role === 'officer') {
-      navigate('/municipal/dashboard');
-    } else {
-      navigate('/feed');
+  const validate = () => {
+    const errs = {};
+    if (!form.email.trim()) {
+      errs.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(form.email)) {
+      errs.email = 'Please enter a valid email';
     }
+
+    if (!form.password) {
+      errs.password = 'Password is required';
+    } else if (form.password.length < 6) {
+      errs.password = 'Password must be at least 6 characters';
+    }
+
+    if (mode === 'register') {
+      if (!form.name.trim()) errs.name = 'Full name is required';
+      if (!form.pincode.trim() || !/^\d{6}$/.test(form.pincode.trim())) {
+        errs.pincode = 'Please enter a valid 6-digit postal pincode';
+      }
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email.trim()) {
-      setErrors({ email: 'Please enter an email' });
-      return;
+    if (!validate()) return;
+
+    setLoading(true);
+    try {
+      let user;
+      if (mode === 'login') {
+        user = await login({
+          email: form.email.trim(),
+          password: form.password,
+        });
+      } else {
+        user = await register({
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim() || undefined,
+          pincode: form.pincode.trim(),
+          password: form.password,
+        });
+      }
+
+      // Role-based routing
+      if (user.role === 'official' || user.role === 'staff' || user.role === 'admin') {
+        navigate('/municipal/dashboard');
+      } else {
+        navigate('/feed');
+      }
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        submit: err.message || 'Authentication failed. Please check your credentials.',
+      }));
+    } finally {
+      setLoading(false);
     }
-    handlePerformLogin(form.email);
   };
 
   return (
@@ -51,29 +97,31 @@ export default function MunicipalLogin() {
             <Shield size={32} className="text-white" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight">CivicPulse Platform</h1>
-          <p className="text-base font-semibold text-white/90">Unified Citizen Grievance & Municipal Management System</p>
+          <p className="text-base font-semibold text-white/90">
+            Unified Citizen Grievance & Municipal Intelligence System
+          </p>
           <p className="text-xs text-white/70 leading-relaxed font-medium">
-            College Demonstration Mode • Simulated authentication with 1-click user persona switching.
+            PostgreSQL + PostGIS secured platform with real-time jurisdictional tracking, AI classification, and cryptographic verification.
           </p>
 
           <div className="grid grid-cols-3 gap-3 pt-6 text-left">
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3.5 border border-white/10">
-              <p className="text-lg font-extrabold">400064</p>
-              <p className="text-[10px] text-white/70 uppercase font-bold">Primary Pincode</p>
+              <p className="text-lg font-extrabold">PostGIS</p>
+              <p className="text-[10px] text-white/70 uppercase font-bold">Spatial Engine</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3.5 border border-white/10">
-              <p className="text-lg font-extrabold">400076</p>
-              <p className="text-[10px] text-white/70 uppercase font-bold">Secondary Zone</p>
+              <p className="text-lg font-extrabold">JWT</p>
+              <p className="text-[10px] text-white/70 uppercase font-bold">Secure Tokens</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-xl p-3.5 border border-white/10">
-              <p className="text-lg font-extrabold">5 Depts</p>
-              <p className="text-[10px] text-white/70 uppercase font-bold">Municipal Ops</p>
+              <p className="text-lg font-extrabold">Realtime</p>
+              <p className="text-[10px] text-white/70 uppercase font-bold">Civic Stream</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right — Login Form & Quick Demo Persona Switcher */}
+      {/* Right — Login & Register Container */}
       <div className="flex-1 flex items-center justify-center p-6 md:p-10">
         <div className="w-full max-w-md space-y-6">
           {/* Mobile Logo Header */}
@@ -85,93 +133,141 @@ export default function MunicipalLogin() {
           </div>
 
           <div>
-            <span className="px-2.5 py-1 bg-primary-50 text-primary-700 text-xs font-extrabold rounded-full border border-primary-200 inline-block mb-2">
-              COLLEGE DEMO MODE
-            </span>
-            <h2 className="text-2xl font-extrabold text-secondary-900 tracking-tight">Portal Authentication</h2>
-            <p className="text-xs text-secondary-500 mt-1">Select a demo user persona below or enter credentials</p>
+            <h2 className="text-2xl font-extrabold text-secondary-900 tracking-tight">
+              {mode === 'login' ? 'Welcome Back' : 'Create an Account'}
+            </h2>
+            <p className="text-xs text-secondary-500 mt-1">
+              {mode === 'login'
+                ? 'Sign in to access your civic feed, voting, and report dashboard'
+                : 'Join your local postal zone to report, upvote, and track civic issues'}
+            </p>
           </div>
 
-          {/* ⚡ Quick Demo Persona Switcher Section */}
-          <div className="bg-gradient-to-br from-primary-50/80 to-indigo-50/60 border border-primary-200 rounded-2xl p-4 space-y-3 shadow-card">
-            <div className="flex items-center gap-1.5 text-xs font-extrabold text-primary-800 border-b border-primary-100 pb-2">
-              <Zap size={15} className="text-primary-600 fill-current" />
-              <span>1-Click College Demo Logins</span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2.5">
-              {DEMO_USERS.map((u) => {
-                const isOfficer = u.role === 'officer';
-                return (
-                  <button
-                    key={u.email}
-                    onClick={() => handlePerformLogin(u.email)}
-                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between group ${
-                      isOfficer
-                        ? 'bg-primary-600 text-white border-primary-600 hover:bg-primary-700 shadow-sm'
-                        : 'bg-white text-secondary-900 border-secondary-200 hover:border-primary-400 hover:shadow-sm'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        isOfficer ? 'bg-white/20 text-white' : 'bg-primary-50 text-primary-700'
-                      }`}>
-                        {isOfficer ? <Building2 size={16} /> : <User size={16} />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-extrabold">{u.name}</span>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                            isOfficer ? 'bg-white/20 text-white' : 'bg-secondary-100 text-secondary-600'
-                          }`}>
-                            {isOfficer ? 'Officer' : `PIN: ${u.pincode}`}
-                          </span>
-                        </div>
-                        <span className={`text-[11px] font-mono block mt-0.5 ${
-                          isOfficer ? 'text-white/80' : 'text-secondary-400'
-                        }`}>
-                          {u.email}
-                        </span>
-                      </div>
-                    </div>
-
-                    <ArrowRight size={15} className={`transition-transform group-hover:translate-x-1 ${
-                      isOfficer ? 'text-white' : 'text-primary-600'
-                    }`} />
-                  </button>
-                );
-              })}
-            </div>
+          {/* Mode Switch Tabs */}
+          <div className="flex p-1 bg-secondary-100 rounded-xl border border-secondary-200">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setErrors({});
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'login'
+                  ? 'bg-surface text-primary-700 shadow-xs border border-secondary-200'
+                  : 'text-secondary-500 hover:text-secondary-800'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('register');
+                setErrors({});
+              }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                mode === 'register'
+                  ? 'bg-surface text-primary-700 shadow-xs border border-secondary-200'
+                  : 'text-secondary-500 hover:text-secondary-800'
+              }`}
+            >
+              Register New Citizen
+            </button>
           </div>
 
-          {/* Standard Form Input */}
-          <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
+          {errors.submit && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+              {errors.submit}
+            </div>
+          )}
+
+          {/* Authentication Form */}
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            {mode === 'register' && (
+              <Input
+                label="Full Name"
+                type="text"
+                placeholder="e.g. Ananya Sharma"
+                value={form.name}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, name: e.target.value }));
+                  setErrors((err) => ({ ...err, name: '' }));
+                }}
+                error={errors.name}
+                id="auth-name-input"
+                required
+              />
+            )}
+
             <Input
-              label="Demo Account Email"
+              label="Email Address"
               type="email"
-              placeholder="officer@demo.com or citizen@demo.com"
+              placeholder="you@example.com"
               value={form.email}
-              onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); setErrors({}); }}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, email: e.target.value }));
+                setErrors((err) => ({ ...err, email: '', submit: '' }));
+              }}
               error={errors.email}
-              id="demo-email-input"
+              id="auth-email-input"
+              required
             />
+
+            {mode === 'register' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Phone Number (Optional)"
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  id="auth-phone-input"
+                />
+                <Input
+                  label="Resident Pincode (6-digit)"
+                  type="text"
+                  maxLength={6}
+                  placeholder="e.g. 110001"
+                  value={form.pincode}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, pincode: e.target.value }));
+                    setErrors((err) => ({ ...err, pincode: '' }));
+                  }}
+                  error={errors.pincode}
+                  id="auth-pincode-input"
+                  required
+                />
+              </div>
+            )}
 
             <Input
-              label="Password (Optional for Demo)"
+              label="Password"
               type="password"
-              placeholder="No password required"
+              placeholder="Minimum 6 characters"
               value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              id="demo-password-input"
+              onChange={(e) => {
+                setForm((f) => ({ ...f, password: e.target.value }));
+                setErrors((err) => ({ ...err, password: '', submit: '' }));
+              }}
+              error={errors.password}
+              id="auth-password-input"
+              required
             />
 
-            <Button type="submit" variant="primary" fullWidth loading={loading} size="lg" className="font-extrabold text-sm py-3">
-              Sign In to Selected Persona
+            <Button
+              type="submit"
+              variant="primary"
+              fullWidth
+              loading={loading}
+              size="lg"
+              className="font-extrabold text-sm py-3 mt-2"
+            >
+              {mode === 'login' ? 'Sign In' : 'Create Account'}
             </Button>
           </form>
 
           <p className="text-center text-[11px] text-secondary-400 font-medium">
-            Simulated demonstration environment • Maintains session state during presentation
+            Protected with bcrypt password hashing & JWT token authentication.
           </p>
         </div>
       </div>

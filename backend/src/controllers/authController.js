@@ -7,11 +7,12 @@ const ApiError = require('../utils/ApiError');
 
 const register = async (req, res, next) => {
   try {
-    const { email, password, full_name, role, phone, pincode, avatar_url } = req.body;
+    const { email, password, full_name, name, role, phone, pincode, avatar_url } = req.body;
     const result = await AuthService.register({
       email,
       password,
-      full_name,
+      full_name: full_name || name,
+      name: name || full_name,
       role,
       phone,
       pincode,
@@ -33,9 +34,10 @@ const login = async (req, res, next) => {
   }
 };
 
-const getProfile = async (req, res, next) => {
+const getMe = async (req, res, next) => {
   try {
-    return ApiResponse.ok(res, { user: req.user }, 'User profile retrieved');
+    const user = await AuthService.getMe(req.user.id);
+    return ApiResponse.ok(res, { user }, 'Current user profile retrieved');
   } catch (err) {
     next(err);
   }
@@ -57,6 +59,7 @@ const refreshToken = async (req, res, next) => {
 module.exports = {
   register,
   login,
-  getProfile,
+  getMe,
+  getProfile: getMe,
   refreshToken,
 };

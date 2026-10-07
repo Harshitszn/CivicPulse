@@ -5,7 +5,7 @@
  *
  * Usage:
  *   router.post('/complaints', authenticate, complaintController.create);
- *   router.post('/admin', authenticate, requireRole('officer', 'admin'), controller.fn);
+ *   router.post('/admin', authenticate, requireRole('official', 'admin'), controller.fn);
  */
 const { verifyAccessToken } = require('../utils/jwt');
 const ApiError = require('../utils/ApiError');
@@ -27,7 +27,7 @@ function authenticate(req, res, next) {
 
     // Attach decoded claims to request object
     req.user = {
-      id: decoded.userId,
+      id: decoded.id || decoded.userId,
       email: decoded.email,
       role: decoded.role,
       pincode: decoded.pincode,
@@ -48,7 +48,13 @@ function optionalAuthenticate(req, res, next) {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
-      req.user = verifyAccessToken(token);
+      const decoded = verifyAccessToken(token);
+      req.user = {
+        id: decoded.id || decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+        pincode: decoded.pincode,
+      };
     }
     next();
   } catch {
@@ -61,11 +67,8 @@ function optionalAuthenticate(req, res, next) {
  * Role-based access control middleware factory.
  * Must be used AFTER authenticate.
  *
- * @param {...string} roles  Allowed roles (e.g., 'officer', 'admin')
+ * @param {...string} roles  Allowed roles (e.g., 'official', 'staff', 'admin')
  * @returns {import('express').RequestHandler}
- *
- * @example
- *   router.patch('/:id/status', authenticate, requireRole('officer', 'admin'), controller.updateStatus);
  */
 function requireRole(...roles) {
   return (req, res, next) => {

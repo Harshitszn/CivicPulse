@@ -2,6 +2,7 @@
  * Environment variable validation & typed config export.
  * Fails fast on startup if any required variable is missing.
  */
+require('dotenv').config();
 
 const REQUIRED_VARS = [
   'DATABASE_URL',
@@ -31,9 +32,9 @@ const config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET,
+    secret: process.env.JWT_SECRET || 'civicpulse_default_jwt_secret_dev_32chars',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    refreshSecret: process.env.JWT_REFRESH_SECRET,
+    refreshSecret: process.env.JWT_REFRESH_SECRET || 'civicpulse_default_jwt_refresh_dev_32',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
 
