@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\FullStackProjets\\CivicPulse\\backend\\logs\\.e52b7436287c43a578609847e0c4bae0e779f67a-audit.json",
+    "files": [
+        {
+            "date": 1791378684108,
+            "name": "C:\\FullStackProjets\\CivicPulse\\backend\\logs\\app-2026-10-07.log",
+            "hash": "d649d6f3b2857c8c526b43c00b390049cdb3a27e20ec960c4fe234a0d02f7b30"
+        }
+    ],
+    "hashType": "sha256"
+}
