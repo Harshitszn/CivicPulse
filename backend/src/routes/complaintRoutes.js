@@ -1,0 +1,23 @@
+/**
+ * Complaint routes
+ */
+const express = require('express');
+const { body } = require('express-validator');
+const router = express.Router();
+const complaintController = require('../controllers/complaintController');
+const validate = require('../middleware/validate');
+const upload = require('../middleware/upload');
+const { authenticate, optionalAuthenticate, requireRole } = require('../middleware/auth');
+
+const complaintValidation = [
+  body('title').trim().notEmpty().withMessage('Title is required'),
+  body('description').trim().notEmpty().withMessage('Description is required'),
+];
+
+router.get('/', optionalAuthenticate, complaintController.listComplaints);
+router.get('/insights', complaintController.getInsights);
+router.get('/:id', optionalAuthenticate, complaintController.getComplaint);
+router.post('/', authenticate, upload.array('images', 5), validate(complaintValidation), complaintController.createComplaint);
+router.patch('/:id/status', authenticate, requireRole('official', 'admin'), complaintController.updateStatus);
+
+module.exports = router;
