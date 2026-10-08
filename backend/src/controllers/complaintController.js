@@ -54,6 +54,8 @@ const createComplaint = async (req, res, next) => {
       longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
       is_anonymous: is_anonymous !== undefined ? is_anonymous : isAnonymous,
       image_urls: imageUrls,
+      image_id: req.body.image_id || req.body.imageId || null,
+      image_ids: req.body.image_ids || null,
       user_id: authenticatedUserId,
       assigned_department,
       estimated_resolution_time: estimated_resolution_time || estimatedResolutionTime || estimatedResolution || '2–4 Days',

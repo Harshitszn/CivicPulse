@@ -120,6 +120,7 @@ export default function Report() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadedImageData, setUploadedImageData] = useState(null);
 
   // ── AI State ───────────────────────────────────────────────────────────────
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
@@ -179,41 +180,64 @@ export default function Report() {
     }, 450);
   };
 
-  // ── Image Upload Handling ──────────────────────────────────────────────────
-  const handleFileChange = (e) => {
+  // ── Image Upload Handling (Real Cloudinary via Backend API) ────────────────
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate mime type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/gif', 'image/heic'];
+    if (!validTypes.includes(file.type.toLowerCase()) && !file.type.startsWith('image/')) {
+      toast.error('Only image files (JPEG, PNG, WebP, GIF) are allowed');
+      return;
+    }
+
+    // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image size must be under 5MB');
       return;
     }
 
+    const token = ApiClient.getToken();
+    if (!token) {
+      toast.warning('Please log in first to upload issue images.');
+      navigate('/login', { state: { returnUrl: '/report' } });
+      return;
+    }
+
     setUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setTimeout(() => {
-        setImagePreview(reader.result);
-        setUploading(false);
-        // Automatically start prototype AI analysis pipeline upon image upload
-        runAiClassification('pothole');
-      }, 500);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Real upload flow: Frontend -> POST /api/uploads/complaint-image -> Cloudinary -> complaint_images table
+      const uploadRes = await ApiClient.uploadComplaintImage(file);
+      const cloudUrl = uploadRes.cloudinary_url || uploadRes.url || uploadRes.image_url;
+      setImagePreview(cloudUrl);
+      setUploadedImageData(uploadRes);
+      toast.success('Image uploaded and verified with cloud storage!');
+
+      // Automatically run AI analysis pipeline on the new upload
+      runAiClassification('pothole');
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      toast.error(err.message || 'Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSelectSamplePhoto = (sample) => {
     setUploading(true);
     setTimeout(() => {
       setImagePreview(sample.url);
+      setUploadedImageData({ url: sample.url, cloudinary_url: sample.url, isSample: true });
       setUploading(false);
       // Run AI pipeline with corresponding sample key
       runAiClassification(sample.key);
-    }, 400);
+    }, 300);
   };
 
   const handleRemoveImage = () => {
     setImagePreview(null);
+    setUploadedImageData(null);
     setAiResult(null);
     setAiAnalyzing(false);
     toast.info('Image and AI analysis removed');
@@ -282,7 +306,11 @@ export default function Report() {
         pincode: form.pincode.trim(),
         address: form.address?.trim() || null,
         is_anonymous: Boolean(form.isAnonymous),
-        imageUrl: imagePreview || null,
+        imageUrl: uploadedImageData?.cloudinary_url || uploadedImageData?.url || imagePreview || null,
+        image_urls: uploadedImageData?.cloudinary_url
+          ? [uploadedImageData.cloudinary_url]
+          : (imagePreview ? [imagePreview] : []),
+        image_id: uploadedImageData?.id || null,
         assigned_department: selectedCategoryObj?.dept || aiResult?.department || 'General Municipal Administration',
         estimated_resolution_time: aiResult?.estimatedResolution || '2–4 Days',
       };

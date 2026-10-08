@@ -129,6 +129,21 @@ class ApiClient {
     });
     return res.data?.complaint || res.data;
   }
+
+  // Upload endpoints
+  static async uploadComplaintImage(file, complaintId = null) {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (complaintId) {
+      formData.append('complaint_id', complaintId);
+    }
+
+    const res = await ApiClient.request('/uploads/complaint-image', {
+      method: 'POST',
+      body: formData,
+    });
+    return res.data?.image || res.data;
+  }
 }
 
 export default ApiClient;

@@ -115,6 +115,8 @@ class ComplaintModel {
     longitude = null,
     is_anonymous = false,
     image_urls = [],
+    image_id = null,
+    image_ids = [],
     user_id,
     assigned_department = null,
     estimated_resolution_time = null,
@@ -146,6 +148,15 @@ class ComplaintModel {
     }
 
     const [inserted] = await db(TABLE).insert(insertData).returning('*');
+
+    // Link pre-uploaded image IDs if passed directly
+    const targetIds = [...(image_ids || []), ...(image_id ? [image_id] : [])].filter(Boolean);
+    if (targetIds.length > 0) {
+      await db('complaint_images')
+        .whereIn('id', targetIds)
+        .whereNull('complaint_id')
+        .update({ complaint_id: inserted.id });
+    }
 
     // Also associate or insert into complaint_images table if images are provided
     if (image_urls && image_urls.length > 0) {

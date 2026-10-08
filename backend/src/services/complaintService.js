@@ -20,6 +20,8 @@ class ComplaintService {
     longitude,
     is_anonymous = false,
     image_urls = [],
+    image_id = null,
+    image_ids = [],
     user_id,
     assigned_department,
     estimated_resolution_time,
@@ -64,6 +66,8 @@ class ComplaintService {
       longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
       is_anonymous: Boolean(is_anonymous),
       image_urls,
+      image_id,
+      image_ids,
       user_id, // Authenticated user ID from JWT
       assigned_department: finalDept,
       estimated_resolution_time: finalEstRes,
