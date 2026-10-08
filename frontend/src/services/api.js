@@ -114,7 +114,20 @@ class ApiClient {
     const qs = query.toString();
     const endpoint = `/complaints${qs ? `?${qs}` : ''}`;
     const res = await ApiClient.request(endpoint);
-    return res.data?.complaints || res.data || [];
+    const complaints = Array.isArray(res.data) ? res.data : (res.data?.complaints || []);
+    complaints.pagination = res.pagination || {
+      page: Number(params.page) || 1,
+      limit: Number(params.limit) || complaints.length,
+      total: complaints.length,
+      pages: 1,
+      totalPages: 1,
+      hasNext: false,
+      hasNextPage: false,
+      hasPrev: false,
+      hasPrevPage: false,
+    };
+    complaints.complaints = complaints;
+    return complaints;
   }
 
   static async getComplaintById(id) {

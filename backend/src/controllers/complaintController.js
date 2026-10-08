@@ -79,38 +79,61 @@ const getComplaint = async (req, res, next) => {
 const listComplaints = async (req, res, next) => {
   try {
     const {
-      limit = 50,
-      offset = 0,
+      pincode,
       category,
       status,
       priority,
-      pincode,
-      userId,
-      search,
+      sort,
       sortBy,
       sortOrder,
+      page = 1,
+      limit = 20,
+      offset,
+      userId,
+      search,
       nearLat,
       nearLng,
       radiusMeters,
     } = req.query;
 
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const calculatedOffset = offset !== undefined ? Math.max(0, parseInt(offset, 10)) : (pageNum - 1) * limitNum;
+
     const result = await ComplaintService.listComplaints({
-      limit: parseInt(limit, 10),
-      offset: parseInt(offset, 10),
+      pincode,
       category,
       status,
       priority,
-      pincode,
-      userId,
-      search,
+      sort: sort || sortBy || 'top',
       sortBy,
       sortOrder,
+      page: pageNum,
+      limit: limitNum,
+      offset: calculatedOffset,
+      userId,
+      search,
       nearLat: nearLat ? parseFloat(nearLat) : undefined,
       nearLng: nearLng ? parseFloat(nearLng) : undefined,
       radiusMeters: radiusMeters ? parseInt(radiusMeters, 10) : undefined,
     });
 
-    return ApiResponse.paginated(res, result.complaints, result.pagination);
+    const total = result.pagination.total;
+    const totalPages = Math.ceil(total / limitNum);
+
+    const paginationData = {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      pages: totalPages,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasNextPage: pageNum < totalPages,
+      hasPrev: pageNum > 1,
+      hasPrevPage: pageNum > 1,
+    };
+
+    return ApiResponse.paginated(res, result.complaints, paginationData, 'Complaints retrieved successfully');
   } catch (err) {
     next(err);
   }

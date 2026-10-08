@@ -209,8 +209,98 @@ class ComplaintModel {
     return ComplaintModel.findById(id);
   }
 
+  static applyFilters(query, filters = {}) {
+    const { category, status, priority, pincode, userId, search, nearLat, nearLng, radiusMeters = 10000 } = filters;
+
+    if (pincode && pincode !== 'all') {
+      query.where('complaints.pincode', String(pincode).trim());
+    }
+
+    if (category && category !== 'all') {
+      const catTrim = String(category).trim().toLowerCase();
+      query.where((builder) => {
+        builder.whereILike('complaints.category', `%${catTrim}%`);
+        if (catTrim === 'roads' || catTrim === 'road') {
+          builder.orWhereILike('complaints.category', '%road%');
+        } else if (catTrim === 'garbage') {
+          builder.orWhereILike('complaints.category', '%garbage%').orWhereILike('complaints.category', '%waste%').orWhereILike('complaints.category', '%sanitation%');
+        } else if (catTrim === 'water') {
+          builder.orWhereILike('complaints.category', '%water%');
+        } else if (catTrim === 'drainage') {
+          builder.orWhereILike('complaints.category', '%drain%').orWhereILike('complaints.category', '%sewage%');
+        } else if (catTrim.includes('light') || catTrim === 'streetlights') {
+          builder.orWhereILike('complaints.category', '%light%').orWhereILike('complaints.category', '%electric%');
+        } else if (catTrim.includes('infra') || catTrim === 'public infrastructure') {
+          builder.orWhereILike('complaints.category', '%infra%');
+        }
+      });
+    }
+
+    if (status && status !== 'all') {
+      query.whereILike('complaints.status', String(status).trim());
+    }
+
+    if (priority && priority !== 'all') {
+      query.whereILike('complaints.priority', String(priority).trim());
+    }
+
+    if (userId) {
+      query.where('complaints.user_id', userId);
+    }
+
+    if (search && String(search).trim()) {
+      const term = `%${String(search).trim()}%`;
+      query.where((builder) => {
+        builder
+          .whereILike('complaints.title', term)
+          .orWhereILike('complaints.description', term)
+          .orWhereILike('complaints.address', term);
+      });
+    }
+
+    if (nearLat && nearLng) {
+      query.whereRaw(
+        'ST_DWithin(complaints.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+        [nearLng, nearLat, radiusMeters]
+      );
+    }
+
+    return query;
+  }
+
+  static applySorting(query, { sort, sortBy, sortOrder = 'desc' } = {}) {
+    const s = (sort || sortBy || 'top').toLowerCase().trim();
+
+    if (s === 'top') {
+      query.orderByRaw('(COALESCE(complaints.upvotes_count, 0) - COALESCE(complaints.downvotes_count, 0)) DESC, complaints.created_at DESC');
+    } else if (s === 'new' || s === 'newest' || s === 'latest' || s === 'created_at') {
+      query.orderBy('complaints.created_at', sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc');
+    } else if (s === 'old' || s === 'oldest') {
+      query.orderBy('complaints.created_at', 'asc');
+    } else if (s === 'urgent' || s === 'priority') {
+      query.orderByRaw(
+        `CASE LOWER(complaints.priority)
+          WHEN 'urgent' THEN 1
+          WHEN 'critical' THEN 1
+          WHEN 'high' THEN 2
+          WHEN 'medium' THEN 3
+          WHEN 'low' THEN 4
+          ELSE 5
+        END ASC, complaints.created_at DESC`
+      );
+    } else if (s === 'discussed' || s === 'comments') {
+      query.orderBy('complaints.created_at', 'desc');
+    } else {
+      const validCols = new Set(['title', 'category', 'status', 'priority', 'pincode', 'created_at', 'updated_at', 'upvotes_count']);
+      const safeCol = validCols.has(s) ? s : 'created_at';
+      query.orderBy(`complaints.${safeCol}`, sortOrder.toLowerCase() === 'asc' ? 'asc' : 'desc');
+    }
+
+    return query;
+  }
+
   static async list({
-    limit = 50,
+    limit = 20,
     offset = 0,
     category,
     status,
@@ -218,7 +308,8 @@ class ComplaintModel {
     pincode,
     userId,
     search,
-    sortBy = 'created_at',
+    sort,
+    sortBy,
     sortOrder = 'desc',
     nearLat,
     nearLng,
@@ -235,40 +326,29 @@ class ComplaintModel {
         db.raw('ST_Y(complaints.location::geometry) as latitude')
       );
 
-    if (category && category !== 'all') query = query.where('complaints.category', category);
-    if (status && status !== 'all') query = query.where('complaints.status', status);
-    if (priority && priority !== 'all') query = query.where('complaints.priority', priority);
-    if (pincode && pincode !== 'all') query = query.where('complaints.pincode', pincode);
-    if (userId) query = query.where('complaints.user_id', userId);
+    ComplaintModel.applyFilters(query, {
+      category,
+      status,
+      priority,
+      pincode,
+      userId,
+      search,
+      nearLat,
+      nearLng,
+      radiusMeters,
+    });
 
-    if (search) {
-      query = query.where((builder) => {
-        builder
-          .whereILike('complaints.title', `%${search}%`)
-          .orWhereILike('complaints.description', `%${search}%`)
-          .orWhereILike('complaints.address', `%${search}%`);
-      });
-    }
+    ComplaintModel.applySorting(query, { sort, sortBy, sortOrder });
 
-    if (nearLat && nearLng) {
-      query = query.whereRaw(
-        'ST_DWithin(complaints.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
-        [nearLng, nearLat, radiusMeters]
-      );
-    }
-
-    const rows = await query.limit(limit).offset(offset).orderBy(`complaints.${sortBy}`, sortOrder);
+    const rows = await query.limit(limit).offset(offset);
     return rows.map(ComplaintModel.formatRow);
   }
 
   static async count(filters = {}) {
     let query = db(TABLE);
-    if (filters.category && filters.category !== 'all') query = query.where({ category: filters.category });
-    if (filters.status && filters.status !== 'all') query = query.where({ status: filters.status });
-    if (filters.pincode && filters.pincode !== 'all') query = query.where({ pincode: filters.pincode });
-    if (filters.userId) query = query.where({ user_id: filters.userId });
-    const result = await query.count('id as count').first();
-    return parseInt(result.count, 10);
+    ComplaintModel.applyFilters(query, filters);
+    const result = await query.count('complaints.id as count').first();
+    return parseInt(result?.count || 0, 10);
   }
 }
 
