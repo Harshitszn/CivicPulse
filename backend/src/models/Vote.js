@@ -49,12 +49,9 @@ class VoteModel {
       throw ApiError.notFound('Complaint not found');
     }
 
-    // 2. Fetch authenticated user's registered pincode if not provided
-    let registeredPincode = userPincode;
-    if (!registeredPincode) {
-      const user = await db('users').where({ id: userId }).first();
-      registeredPincode = user?.pincode;
-    }
+    // 2. Fetch authenticated user's registered pincode authoritatively from PostgreSQL database
+    const user = await db('users').where({ id: userId }).first();
+    const registeredPincode = user?.pincode;
 
     if (!registeredPincode) {
       throw ApiError.forbidden('You must have a registered pincode on your profile to vote.');

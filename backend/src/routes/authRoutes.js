@@ -7,6 +7,7 @@ const router = express.Router();
 const authController = require('../controllers/authController');
 const validate = require('../middleware/validate');
 const { authenticate } = require('../middleware/auth');
+const { authLimiter } = require('../middleware/rateLimiters');
 
 const registerValidation = [
   body('email').isEmail().withMessage('Please provide a valid email address'),
@@ -24,10 +25,10 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-router.post('/register', validate(registerValidation), authController.register);
-router.post('/login', validate(loginValidation), authController.login);
+router.post('/register', authLimiter, validate(registerValidation), authController.register);
+router.post('/login', authLimiter, validate(loginValidation), authController.login);
 router.get('/me', authenticate, authController.getMe);
 router.get('/profile', authenticate, authController.getMe);
-router.post('/refresh', authController.refreshToken);
+router.post('/refresh', authLimiter, authController.refreshToken);
 
 module.exports = router;

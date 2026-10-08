@@ -18,6 +18,20 @@ function validateEnv() {
       'Copy .env.example to .env and fill in the values.'
     );
   }
+
+  // In production: refuse to start with insecure placeholder JWT secrets
+  if (process.env.NODE_ENV === 'production') {
+    const INSECURE_DEFAULTS = [
+      'civicpulse_default_jwt_secret_dev_32chars',
+      'civicpulse_default_jwt_refresh_dev_32',
+    ];
+    if (INSECURE_DEFAULTS.includes(process.env.JWT_SECRET)) {
+      throw new Error('SECURITY: JWT_SECRET is set to the development placeholder. Set a strong, unique secret for production.');
+    }
+    if (INSECURE_DEFAULTS.includes(process.env.JWT_REFRESH_SECRET)) {
+      throw new Error('SECURITY: JWT_REFRESH_SECRET is set to the development placeholder. Set a strong, unique secret for production.');
+    }
+  }
 }
 
 /** @type {Object} Typed, validated config object */

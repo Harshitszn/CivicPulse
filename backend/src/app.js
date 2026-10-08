@@ -21,12 +21,20 @@ app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow requests with no origin (like mobile apps, curl, postman)
+      // allow requests with no origin (like mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      if (config.cors.origins.indexOf(origin) !== -1 || config.cors.origins.includes('*') || config.isDev) {
+
+      // Check configured origins
+      if (config.cors.origins.includes(origin) || config.cors.origins.includes('*')) {
         return callback(null, true);
       }
-      return callback(new Error('Not allowed by CORS'));
+
+      // Allow local development origins
+      if (config.isDev && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Cross-Origin Request Blocked: Not allowed by CORS policy.'));
     },
     credentials: true,
   })

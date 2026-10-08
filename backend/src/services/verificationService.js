@@ -37,10 +37,13 @@ class VerificationService {
       );
     }
 
-    // Pincode eligibility
-    if (String(userPincode).trim() !== String(complaint.pincode).trim()) {
+    // Pincode eligibility — fetch authoritatively from PostgreSQL database
+    const user = await db('users').where({ id: userId }).first();
+    const authoritativePincode = user?.pincode;
+
+    if (!authoritativePincode || String(authoritativePincode).trim() !== String(complaint.pincode).trim()) {
       throw ApiError.forbidden(
-        `Only residents of pincode ${complaint.pincode} can verify this complaint`
+        `Only residents of pincode ${complaint.pincode} can verify this complaint. Your registered pincode is ${authoritativePincode || 'not set'}.`
       );
     }
 

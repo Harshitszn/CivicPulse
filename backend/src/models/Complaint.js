@@ -143,6 +143,8 @@ class ComplaintModel {
       ai_urgency_score,
       upvotes_count: 0,
       downvotes_count: 0,
+      flagged_for_review: false,
+      dispute_count: 0,
     };
 
     let finalLng = longitude !== undefined && longitude !== null ? parseFloat(longitude) : null;

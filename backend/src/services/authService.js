@@ -10,7 +10,7 @@ class AuthService {
   /**
    * Register a new user
    */
-  static async register({ email, password, full_name, name, role = 'citizen', phone, pincode, avatar_url }) {
+  static async register({ email, password, full_name, name, phone, pincode, avatar_url }) {
     const resolvedName = (full_name || name || '').trim();
     if (!resolvedName) {
       throw ApiError.badRequest('Name is required');
@@ -24,6 +24,15 @@ class AuthService {
       throw ApiError.badRequest('Password must be at least 6 characters');
     }
 
+    // Sanitize and validate pincode if provided
+    let cleanPincode = null;
+    if (pincode) {
+      cleanPincode = String(pincode).trim();
+      if (!/^\d{6}$/.test(cleanPincode)) {
+        throw ApiError.badRequest('Postal pincode must be a 6-digit numeric code');
+      }
+    }
+
     const cleanEmail = email.toLowerCase().trim();
     const existing = await UserModel.findByEmail(cleanEmail);
     if (existing) {
@@ -33,13 +42,14 @@ class AuthService {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
+    // SECURITY: Never trust role from frontend. Public registration always creates 'citizen'.
     const user = await UserModel.create({
       email: cleanEmail,
       password_hash,
       full_name: resolvedName,
-      role: role || 'citizen',
-      phone: phone || null,
-      pincode: pincode || null,
+      role: 'citizen',
+      phone: phone ? String(phone).trim() : null,
+      pincode: cleanPincode,
       avatar_url: avatar_url || null,
     });
 

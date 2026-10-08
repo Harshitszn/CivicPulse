@@ -32,8 +32,12 @@ class CommentModel {
     return comment;
   }
 
-  static async delete(id, userId) {
-    return db(TABLE).where({ id, user_id: userId }).del();
+  static async delete(id, userId, isAdmin = false) {
+    let query = db(TABLE).where({ id });
+    if (!isAdmin) {
+      query = query.where({ user_id: userId });
+    }
+    return query.del();
   }
 }
 

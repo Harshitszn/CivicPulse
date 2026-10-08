@@ -7,12 +7,15 @@ const uploadController = require('../controllers/uploadController');
 const upload = require('../middleware/upload');
 const { authenticate } = require('../middleware/auth');
 
-// Middleware to accept single image from field 'image' or 'file'
+// Middleware to accept single image from field 'image' or 'file' strictly
 const handleSingleImage = (req, res, next) => {
-  upload.any()(req, res, (err) => {
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'file', maxCount: 1 },
+  ])(req, res, (err) => {
     if (err) return next(err);
-    if (req.files && req.files.length > 0) {
-      req.file = req.files[0];
+    if (req.files) {
+      req.file = req.files['image']?.[0] || req.files['file']?.[0];
     }
     next();
   });

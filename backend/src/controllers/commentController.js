@@ -42,7 +42,8 @@ const addComment = async (req, res, next) => {
 const deleteComment = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const deleted = await CommentModel.delete(id, req.user.id);
+    const isAdmin = req.user?.role === 'admin';
+    const deleted = await CommentModel.delete(id, req.user.id, isAdmin);
     if (!deleted) {
       throw ApiError.notFound('Comment not found or unauthorized');
     }

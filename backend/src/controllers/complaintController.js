@@ -14,7 +14,6 @@ const createComplaint = async (req, res, next) => {
       category,
       requirement,
       priority,
-      status = 'REPORTED',
       address,
       pincode,
       latitude,
@@ -27,8 +26,29 @@ const createComplaint = async (req, res, next) => {
       estimatedResolution,
     } = req.body;
 
-    // Do NOT trust user-provided user IDs — extract exclusively from authenticated JWT
+    // SECURITY: Authoritative user ID exclusively from authenticated JWT
     const authenticatedUserId = req.user.id;
+
+    // Validate pincode format
+    if (!pincode || !/^\d{6}$/.test(String(pincode).trim())) {
+      throw ApiError.badRequest('A valid 6-digit postal pincode is required');
+    }
+
+    // Validate coordinate boundaries if provided
+    let parsedLat = null;
+    let parsedLng = null;
+    if (latitude !== undefined && latitude !== null && latitude !== '') {
+      parsedLat = parseFloat(latitude);
+      if (isNaN(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+        throw ApiError.badRequest('Latitude must be a valid number between -90 and 90 degrees');
+      }
+    }
+    if (longitude !== undefined && longitude !== null && longitude !== '') {
+      parsedLng = parseFloat(longitude);
+      if (isNaN(parsedLng) || parsedLng < -180 || parsedLng > 180) {
+        throw ApiError.badRequest('Longitude must be a valid number between -180 and 180 degrees');
+      }
+    }
 
     let imageUrls = [];
     if (req.files && req.files.length > 0) {
@@ -41,17 +61,19 @@ const createComplaint = async (req, res, next) => {
       imageUrls = [req.body.imageUrl];
     }
 
+    // SECURITY: Initial status is ALWAYS authoritatively REPORTED upon creation.
+    // Frontend cannot set custom status or inject initial vote counts.
     const complaint = await ComplaintService.createComplaint({
       title,
       description,
       category,
       requirement: requirement || null,
       priority: priority || 'medium',
-      status: status || 'REPORTED',
+      status: 'REPORTED',
       address,
-      pincode,
-      latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
-      longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
+      pincode: String(pincode).trim(),
+      latitude: parsedLat,
+      longitude: parsedLng,
       is_anonymous: is_anonymous !== undefined ? is_anonymous : isAnonymous,
       image_urls: imageUrls,
       image_id: req.body.image_id || req.body.imageId || null,

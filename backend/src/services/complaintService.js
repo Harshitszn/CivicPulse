@@ -151,19 +151,38 @@ class ComplaintService {
     }
 
     const allowedUpdates = {};
-    if (updates.title) allowedUpdates.title = updates.title.trim();
-    if (updates.description) allowedUpdates.description = updates.description.trim();
-    if (updates.category) allowedUpdates.category = updates.category;
-    if (updates.requirement !== undefined) allowedUpdates.requirement = updates.requirement;
-    if (updates.priority) allowedUpdates.priority = updates.priority;
-    if (updates.pincode) allowedUpdates.pincode = updates.pincode;
-    if (updates.address !== undefined) allowedUpdates.address = updates.address;
-    if (updates.latitude !== undefined) allowedUpdates.latitude = updates.latitude;
-    if (updates.longitude !== undefined) allowedUpdates.longitude = updates.longitude;
-    if (updates.is_anonymous !== undefined) allowedUpdates.is_anonymous = updates.is_anonymous;
-    if (updates.isAnonymous !== undefined) allowedUpdates.is_anonymous = updates.isAnonymous;
-    if (updates.estimated_resolution_time) allowedUpdates.estimated_resolution_time = updates.estimated_resolution_time;
-    if (updates.estimatedResolution) allowedUpdates.estimated_resolution_time = updates.estimatedResolution;
+
+    // Fields editable by the complaint owner (citizen)
+    if (isOwner || isStaffOrAdmin) {
+      if (updates.title) allowedUpdates.title = updates.title.trim();
+      if (updates.description) allowedUpdates.description = updates.description.trim();
+      if (updates.requirement !== undefined) allowedUpdates.requirement = updates.requirement;
+      if (updates.address !== undefined) allowedUpdates.address = updates.address;
+      if (updates.is_anonymous !== undefined) allowedUpdates.is_anonymous = updates.is_anonymous;
+      if (updates.isAnonymous !== undefined) allowedUpdates.is_anonymous = updates.isAnonymous;
+    }
+
+    // Fields restricted to staff/admin only to prevent:
+    // - Locality manipulation (pincode change)
+    // - Artificial priority escalation (priority change)
+    // - Category re-classification (category change)
+    if (isStaffOrAdmin) {
+      if (updates.category) allowedUpdates.category = updates.category;
+      if (updates.priority) allowedUpdates.priority = updates.priority;
+      if (updates.estimated_resolution_time) allowedUpdates.estimated_resolution_time = updates.estimated_resolution_time;
+      if (updates.estimatedResolution) allowedUpdates.estimated_resolution_time = updates.estimatedResolution;
+      if (updates.latitude !== undefined) allowedUpdates.latitude = updates.latitude;
+      if (updates.longitude !== undefined) allowedUpdates.longitude = updates.longitude;
+
+      // Validate and accept pincode change from staff only
+      if (updates.pincode) {
+        const cleanPincode = String(updates.pincode).trim();
+        if (!/^\d{6}$/.test(cleanPincode)) {
+          throw ApiError.badRequest('Postal pincode must be a 6-digit numeric code');
+        }
+        allowedUpdates.pincode = cleanPincode;
+      }
+    }
 
     // Only staff/admin can change status and assigned department
     if (updates.status && updates.status !== existing.status) {
