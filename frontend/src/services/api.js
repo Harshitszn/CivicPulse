@@ -238,6 +238,58 @@ class ApiClient {
     });
     return res.data;
   }
+
+  // Admin / Municipal Command Center endpoints
+  static async getAdminDashboard(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/admin/dashboard${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
+
+  static async getAdminComplaints(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/admin/complaints${qs ? `?${qs}` : ''}`);
+    const complaints = Array.isArray(res.data) ? res.data : (res.data?.complaints || []);
+    complaints.pagination = res.pagination || { page: 1, total: complaints.length, totalPages: 1 };
+    return complaints;
+  }
+
+  static async getAdminComplaint(id) {
+    const res = await ApiClient.request(`/admin/complaints/${id}`);
+    return res.data;
+  }
+
+  static async updateAdminComplaintStatus(id, { status, notes, assigned_department }) {
+    const res = await ApiClient.request(`/admin/complaints/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, notes, assigned_department }),
+    });
+    return res.data;
+  }
+
+  static async getAdminAnalytics(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/admin/analytics${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
 }
 
 export default ApiClient;

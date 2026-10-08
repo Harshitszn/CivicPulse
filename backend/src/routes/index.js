@@ -21,6 +21,7 @@ router.use('/votes', voteRouter);
 router.use('/comments', commentRouter);
 router.use('/users', userRouter);
 router.use('/municipal', municipalRouter);
+router.use('/admin', municipalRouter);
 router.use('/uploads', uploadRouter);
 router.use('/ai', aiRouter);
 

@@ -1,12 +1,31 @@
 /**
- * Municipal dashboard routes
+ * Admin / Municipal Command Center routes
+ * All routes require official, staff, or admin role.
  */
 const express = require('express');
 const router = express.Router();
-const municipalController = require('../controllers/municipalController');
+const mc = require('../controllers/municipalController');
 const { authenticate, requireRole } = require('../middleware/auth');
 
-router.get('/stats', municipalController.getDashboardStats);
-router.get('/wards', municipalController.getWards);
+const isAdmin = [authenticate, requireRole('official', 'staff', 'admin')];
+
+// Dashboard overview (KPIs + charts + recent activity)
+router.get('/dashboard', isAdmin, mc.getDashboard);
+
+// Complaint management (list with full filters)
+router.get('/complaints', isAdmin, mc.getAdminComplaints);
+
+// Single complaint detail (includes history, comments, verification)
+router.get('/complaints/:id', isAdmin, mc.getAdminComplaint);
+
+// Update complaint status (staff/admin action)
+router.patch('/complaints/:id/status', isAdmin, mc.updateAdminComplaintStatus);
+
+// Analytics (charts for the Analytics page)
+router.get('/analytics', isAdmin, mc.getAnalytics);
+
+// Legacy endpoints kept for backward compat
+router.get('/stats', mc.getDashboardStats);
+router.get('/wards', mc.getWards);
 
 module.exports = router;

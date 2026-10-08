@@ -266,6 +266,38 @@ export default function MunicipalLogin() {
             </Button>
           </form>
 
+          {mode === 'login' && (
+            <div className="pt-2 border-t border-secondary-100 space-y-2">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-secondary-400 text-center">
+                Quick Demo Accounts (1-Click Fill)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({ email: 'officer.verma@ndmc.gov.in', password: 'password123' });
+                    setErrors({});
+                  }}
+                  className="p-2 text-left bg-secondary-50 hover:bg-secondary-100 border border-secondary-200 rounded-lg text-xs font-semibold text-secondary-800 transition-colors"
+                >
+                  <span className="block font-bold text-primary-700">Official Staff</span>
+                  <span className="text-[10px] text-secondary-500 block truncate">officer.verma@ndmc.gov.in</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({ email: 'admin@civicpulse.org', password: 'password123' });
+                    setErrors({});
+                  }}
+                  className="p-2 text-left bg-secondary-50 hover:bg-secondary-100 border border-secondary-200 rounded-lg text-xs font-semibold text-secondary-800 transition-colors"
+                >
+                  <span className="block font-bold text-indigo-700">Administrator</span>
+                  <span className="text-[10px] text-secondary-500 block truncate">admin@civicpulse.org</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <p className="text-center text-[11px] text-secondary-400 font-medium">
             Protected with bcrypt password hashing & JWT token authentication.
           </p>

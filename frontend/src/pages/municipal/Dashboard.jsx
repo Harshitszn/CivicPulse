@@ -1,17 +1,18 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FileText, Clock, AlertTriangle, CheckCircle2, TrendingUp,
-  ArrowRight, Building2, MapPin, Filter, Layers, Zap, Flame, ShieldCheck, RefreshCw, BarChart2
+  ArrowRight, Building2, MapPin, Filter, Layers, Zap, Flame,
+  ShieldCheck, RefreshCw, BarChart2, Loader2, Lock, Shield
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
-import Card from '../../components/ui/Card';
 import { StatusBadge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { usePincode } from '../../context/PincodeContext';
+import ApiClient from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 function timeAgo(dateString) {
   if (!dateString) return 'Just now';
@@ -30,7 +31,8 @@ function timeAgo(dateString) {
 }
 
 export default function Dashboard() {
-  const { allComplaints, getComplaintVotes, getComplaintVerification } = usePincode();
+  const { currentUser, login } = useAuth();
+  const isStaffOrAdmin = currentUser && ['official', 'staff', 'admin'].includes(currentUser.role);
 
   // ── Filters State ────────────────────────────────────────────────────────────
   const [pincodeFilter, setPincodeFilter] = useState('all');
@@ -39,41 +41,79 @@ export default function Dashboard() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  // ── Dynamic KPI Calculations derived strictly from shared allComplaints ─────
-  const totalComplaints = allComplaints.length;
-  const pendingComplaints = allComplaints.filter((c) => c.status !== 'resolved').length;
-  const highPriorityComplaints = allComplaints.filter((c) => c.priority === 'high' || c.priority === 'urgent').length;
-  const inProgressComplaints = allComplaints.filter((c) => c.status === 'in_progress').length;
-  const resolvedComplaints = allComplaints.filter((c) => c.status === 'resolved').length;
+  // ── Database State ───────────────────────────────────────────────────────────
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [quickLoginLoading, setQuickLoginLoading] = useState(false);
+
+  // ── Fetch live database dashboard telemetry ──────────────────────────────────
+  const fetchDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (pincodeFilter !== 'all') params.pincode = pincodeFilter;
+      const data = await ApiClient.getAdminDashboard(params);
+      setDashboardData(data);
+    } catch (err) {
+      console.error('Failed to fetch admin dashboard:', err);
+      setError(err.message || 'Failed to load dashboard statistics from PostgreSQL.');
+    } finally {
+      setLoading(false);
+    }
+  }, [pincodeFilter]);
+
+  useEffect(() => {
+    if (isStaffOrAdmin) {
+      fetchDashboard();
+    } else {
+      setLoading(false);
+    }
+  }, [fetchDashboard, isStaffOrAdmin]);
+
+  // Demo switch helper if user is not yet logged in as admin
+  const handleQuickDemoLogin = async (email) => {
+    setQuickLoginLoading(true);
+    try {
+      await login({ email, password: 'password123' });
+    } catch (err) {
+      console.error('Quick login failed:', err);
+    } finally {
+      setQuickLoginLoading(false);
+    }
+  };
+
+  // ── Dynamic KPIs calculated strictly from PostgreSQL ────────────────────────
+  const kpi = dashboardData?.kpi || {
+    total: 0,
+    pending: 0,
+    in_progress: 0,
+    resolved: 0,
+    high_priority: 0,
+    avg_resolution_label: 'N/A',
+  };
 
   const KPI_CARDS = [
     {
       label: 'Total Complaints',
-      value: totalComplaints,
-      subtext: 'Live citizen grievance dataset',
+      value: kpi.total,
+      subtext: 'Calculated from PostgreSQL',
       icon: FileText,
       color: 'text-primary-700',
       bg: 'bg-primary-50 border-primary-200',
     },
     {
       label: 'Pending',
-      value: pendingComplaints,
-      subtext: 'Awaiting field resolution',
+      value: kpi.pending,
+      subtext: 'Reported, verified & assigned',
       icon: Clock,
       color: 'text-amber-700',
       bg: 'bg-amber-50 border-amber-200',
     },
     {
-      label: 'High Priority',
-      value: highPriorityComplaints,
-      subtext: 'High & urgent severity cases',
-      icon: AlertTriangle,
-      color: 'text-red-700',
-      bg: 'bg-red-50 border-red-200',
-    },
-    {
       label: 'In Progress',
-      value: inProgressComplaints,
+      value: kpi.in_progress,
       subtext: 'Active field crews dispatched',
       icon: Flame,
       color: 'text-indigo-700',
@@ -81,86 +121,63 @@ export default function Dashboard() {
     },
     {
       label: 'Resolved',
-      value: resolvedComplaints,
-      subtext: 'Successfully closed grievances',
+      value: kpi.resolved,
+      subtext: 'Closed in database',
       icon: CheckCircle2,
       color: 'text-emerald-700',
       bg: 'bg-emerald-50 border-emerald-200',
     },
+    {
+      label: 'High Priority',
+      value: kpi.high_priority,
+      subtext: 'Urgent & high severity cases',
+      icon: AlertTriangle,
+      color: 'text-red-700',
+      bg: 'bg-red-50 border-red-200',
+    },
+    {
+      label: 'Avg Resolution Time',
+      value: kpi.avg_resolution_label || 'N/A',
+      subtext: 'Database resolved_at duration',
+      icon: TrendingUp,
+      color: 'text-cyan-700',
+      bg: 'bg-cyan-50 border-cyan-200',
+    },
   ];
 
-  // ── 1. Complaints by Category Chart Data ──────────────────────────────────────
-  const categoryData = useMemo(() => {
-    const counts = {};
-    allComplaints.forEach((c) => {
-      const cat = c.category || 'General';
-      counts[cat] = (counts[cat] || 0) + 1;
-    });
-    const palette = ['#2563EB', '#3B82F6', '#60A5FA', '#93C5FD', '#1D4ED8', '#1E40AF', '#64748B'];
-    return Object.entries(counts).map(([name, value], idx) => ({
-      name,
-      value,
-      color: palette[idx % palette.length],
-    }));
-  }, [allComplaints]);
+  // ── Live Chart Data from PostgreSQL ──────────────────────────────────────────
+  const categoryData = dashboardData?.charts?.byCategory || [];
+  const statusData = dashboardData?.charts?.byStatus || [];
+  const pincodeData = dashboardData?.charts?.byPincode || [];
 
-  // ── 2. Complaints by Status Chart Data ────────────────────────────────────────
-  const statusData = useMemo(() => {
-    const counts = {
-      Reported: 0,
-      Verified: 0,
-      Assigned: 0,
-      'In Progress': 0,
-      Resolved: 0,
-    };
-    allComplaints.forEach((c) => {
-      if (c.status === 'open') counts.Reported += 1;
-      else if (c.status === 'verified') counts.Verified += 1;
-      else if (c.status === 'assigned') counts.Assigned += 1;
-      else if (c.status === 'in_progress') counts['In Progress'] += 1;
-      else if (c.status === 'resolved') counts.Resolved += 1;
-      else counts.Reported += 1;
-    });
-    return Object.entries(counts).map(([name, count]) => ({ name, count }));
-  }, [allComplaints]);
-
-  // ── 3. Complaints by Pincode Chart Data ───────────────────────────────────────
-  const pincodeData = useMemo(() => {
-    const counts = {};
-    allComplaints.forEach((c) => {
-      const pin = c.pincode || 'Unknown';
-      counts[pin] = (counts[pin] || 0) + 1;
-    });
-    return Object.entries(counts).map(([pincode, count]) => ({
-      pincode: `PIN ${pincode}`,
-      count,
-    }));
-  }, [allComplaints]);
-
-  // ── Dynamic Filter Options ───────────────────────────────────────────────────
+  // Pincode filter options
   const uniquePincodes = useMemo(() => {
-    return Array.from(new Set(allComplaints.map((c) => c.pincode).filter(Boolean))).sort();
-  }, [allComplaints]);
+    const list = pincodeData.map(p => p.pincode.replace(/[^0-9]/g, '')).filter(Boolean);
+    return Array.from(new Set(list)).sort();
+  }, [pincodeData]);
 
+  // Unique categories from live breakdown
   const uniqueCategories = useMemo(() => {
-    return Array.from(new Set(allComplaints.map((c) => c.category || c.categorySlug).filter(Boolean))).sort();
-  }, [allComplaints]);
+    return categoryData.map(c => c.name);
+  }, [categoryData]);
+
+  // Complaints list from API
+  const complaintsList = dashboardData?.recentComplaints || [];
+
+  // Filtered Complaints for Table
+  const filteredComplaints = useMemo(() => {
+    return complaintsList.filter((c) => {
+      const matchCat = categoryFilter === 'all' || (c.category && c.category.toLowerCase().includes(categoryFilter.toLowerCase()));
+      const matchDept = deptFilter === 'all' || c.department === deptFilter;
+      const matchPriority = priorityFilter === 'all' || (c.priority && c.priority.toLowerCase() === priorityFilter.toLowerCase());
+      const matchStatus = statusFilter === 'all' || (c.status && c.status.toLowerCase() === statusFilter.toLowerCase());
+      return matchCat && matchDept && matchPriority && matchStatus;
+    });
+  }, [complaintsList, categoryFilter, deptFilter, priorityFilter, statusFilter]);
 
   const uniqueDepartments = useMemo(() => {
-    return Array.from(new Set(allComplaints.map((c) => c.department).filter(Boolean))).sort();
-  }, [allComplaints]);
-
-  // ── Filtered Complaints List for Table ───────────────────────────────────────
-  const filteredComplaints = useMemo(() => {
-    return allComplaints.filter((c) => {
-      const matchPin = pincodeFilter === 'all' || c.pincode === pincodeFilter;
-      const matchCat = categoryFilter === 'all' || (c.category && c.category.toLowerCase() === categoryFilter.toLowerCase()) || (c.categorySlug && c.categorySlug.toLowerCase() === categoryFilter.toLowerCase());
-      const matchDept = deptFilter === 'all' || c.department === deptFilter;
-      const matchPriority = priorityFilter === 'all' || c.priority === priorityFilter;
-      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-      return matchPin && matchCat && matchDept && matchPriority && matchStatus;
-    });
-  }, [allComplaints, pincodeFilter, categoryFilter, deptFilter, priorityFilter, statusFilter]);
+    return Array.from(new Set(complaintsList.map((c) => c.department).filter(Boolean))).sort();
+  }, [complaintsList]);
 
   const isAnyFilterActive =
     pincodeFilter !== 'all' ||
@@ -177,6 +194,61 @@ export default function Dashboard() {
     setStatusFilter('all');
   };
 
+  // ── Access Denied / Auth Required State ──────────────────────────────────────
+  if (!isStaffOrAdmin) {
+    return (
+      <div className="animate-fade-in space-y-6 w-full max-w-4xl mx-auto py-12">
+        <div className="bg-white border-2 border-primary-200 rounded-2xl p-8 shadow-raised text-center space-y-6">
+          <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto text-primary-600">
+            <Lock size={32} />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-secondary-900 tracking-tight">
+              Administrative Authentication Required
+            </h1>
+            <p className="text-sm text-secondary-600 max-w-lg mx-auto">
+              The Municipal Command Center contains restricted civic infrastructure operations and PostgreSQL telemetry.
+              Only verified municipal staff and administrators can access this view.
+            </p>
+            {currentUser && (
+              <p className="text-xs text-amber-700 bg-amber-50 inline-block px-3 py-1 rounded-full border border-amber-200 font-semibold">
+                Current role: <strong>{currentUser.role}</strong> ({currentUser.email}) — Access Restricted
+              </p>
+            )}
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link to="/municipal/login">
+              <Button variant="primary" size="lg" icon={Shield} className="font-bold text-sm">
+                Sign In to Official Account
+              </Button>
+            </Link>
+
+            <Button
+              variant="secondary"
+              size="lg"
+              loading={quickLoginLoading}
+              onClick={() => handleQuickDemoLogin('officer.verma@ndmc.gov.in')}
+              className="text-xs font-bold"
+            >
+              Demo: Quick Sign In as Officer Verma
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              loading={quickLoginLoading}
+              onClick={() => handleQuickDemoLogin('admin@civicpulse.org')}
+              className="text-xs font-bold"
+            >
+              Demo: Quick Sign In as Admin
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6 w-full pb-12">
       {/* Title & Operations Header */}
@@ -186,39 +258,59 @@ export default function Dashboard() {
             <h1 className="text-xl font-extrabold text-secondary-900 tracking-tight">Municipal Command Center</h1>
             <span className="px-2.5 py-0.5 bg-primary-50 text-primary-700 font-extrabold text-xs rounded-full border border-primary-200 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              LIVE DATA STREAM
+              POSTGRESQL TELEMETRY
             </span>
           </div>
           <p className="text-xs text-secondary-500 mt-1">
-            Real-time municipal grievance operations • Derived dynamically from shared citizen reports & pincodes
+            Real-time municipal grievance operations • Derived dynamically from PostgreSQL database
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={RefreshCw}
+            onClick={fetchDashboard}
+            loading={loading}
+            className="text-xs font-bold text-secondary-600 hover:text-primary-600"
+          >
+            Refresh Data
+          </Button>
           <Link to="/municipal/complaints">
             <Button variant="primary" size="sm" icon={ArrowRight} className="font-bold text-xs">
-              Manage All Complaints ({allComplaints.length})
+              Manage Complaints ({kpi.total})
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* ── 5 KPI Cards Grid ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        {KPI_CARDS.map((kpi) => {
-          const Icon = kpi.icon;
+      {/* Error Alert */}
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium flex items-center justify-between">
+          <span>⚠ {error}</span>
+          <Button size="xs" variant="outline" onClick={fetchDashboard}>Retry</Button>
+        </div>
+      )}
+
+      {/* ── 6 KPI Cards Grid ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        {KPI_CARDS.map((item) => {
+          const Icon = item.icon;
           return (
             <div
-              key={kpi.label}
-              className={`bg-white border rounded-xl p-4 shadow-card hover:shadow-raised transition-all ${kpi.bg}`}
+              key={item.label}
+              className={`bg-white border rounded-xl p-4 shadow-card hover:shadow-raised transition-all ${item.bg}`}
             >
               <div className="flex items-center justify-between mb-2">
-                <Icon size={18} className={kpi.color} />
+                <Icon size={18} className={item.color} />
                 <span className="text-[10px] font-extrabold text-secondary-400 uppercase tracking-wider">Metric</span>
               </div>
-              <p className="text-2xl font-extrabold text-secondary-900 leading-tight">{kpi.value}</p>
-              <p className="text-xs font-bold text-secondary-800 truncate mt-0.5">{kpi.label}</p>
-              <p className="text-[10px] text-secondary-500 font-medium mt-1 truncate">{kpi.subtext}</p>
+              <p className="text-2xl font-extrabold text-secondary-900 leading-tight">
+                {loading ? '—' : item.value}
+              </p>
+              <p className="text-xs font-bold text-secondary-800 truncate mt-0.5">{item.label}</p>
+              <p className="text-[10px] text-secondary-500 font-medium mt-1 truncate">{item.subtext}</p>
             </div>
           );
         })}
@@ -233,36 +325,40 @@ export default function Dashboard() {
               <PieChart size={16} className="text-primary-600" />
               Complaints by Category
             </h3>
-            <p className="text-xs text-secondary-400">Distribution by grievance classification</p>
+            <p className="text-xs text-secondary-400">PostgreSQL aggregation by category</p>
           </div>
 
           <div className="h-44 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={42}
-                  outerRadius={68}
-                  paddingAngle={3}
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 11 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {categoryData.length === 0 ? (
+              <p className="text-xs text-secondary-400">No categories recorded yet</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={42}
+                    outerRadius={68}
+                    paddingAngle={3}
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || '#2563EB'} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="space-y-1.5 text-xs max-h-36 overflow-y-auto pr-1">
             {categoryData.map((cat) => (
               <div key={cat.name} className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-secondary-600 font-medium truncate max-w-[170px]">
-                  <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: cat.color || '#2563EB' }} />
                   {cat.name}
                 </span>
                 <span className="font-bold text-secondary-900">{cat.value}</span>
@@ -420,11 +516,12 @@ export default function Dashboard() {
               className="w-full bg-secondary-50 border border-secondary-200 text-secondary-900 text-xs rounded-lg p-2 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
             >
               <option value="all">All Statuses</option>
-              <option value="open">Reported (Open)</option>
+              <option value="reported">Reported</option>
               <option value="verified">Verified</option>
               <option value="assigned">Assigned</option>
               <option value="in_progress">In Progress</option>
               <option value="resolved">Resolved</option>
+              <option value="reopened">Reopened</option>
             </select>
           </div>
         </div>
@@ -439,7 +536,7 @@ export default function Dashboard() {
               Recent Complaint Operations Table
             </h3>
             <p className="text-xs text-secondary-400">
-              Showing {filteredComplaints.length} of {allComplaints.length} grievances • Dynamically calculated from live shared data
+              Showing {filteredComplaints.length} of {complaintsList.length} grievances • Dynamically calculated from PostgreSQL
             </p>
           </div>
 
@@ -460,11 +557,18 @@ export default function Dashboard() {
                 <th className="px-3 py-3 text-left font-bold text-secondary-500 uppercase tracking-wider">Status</th>
                 <th className="px-3 py-3 text-center font-bold text-secondary-500 uppercase tracking-wider">Vote Score</th>
                 <th className="px-3 py-3 text-left font-bold text-secondary-500 uppercase tracking-wider">Created</th>
-                <th className="px-3 py-3 text-left font-bold text-secondary-500 uppercase tracking-wider">Community Confirmation</th>
+                <th className="px-3 py-3 text-left font-bold text-secondary-500 uppercase tracking-wider">Municipal Status</th>
               </tr>
             </thead>
             <tbody>
-              {filteredComplaints.length === 0 ? (
+              {loading && complaintsList.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-8 text-center text-secondary-500 font-medium">
+                    <Loader2 size={20} className="animate-spin inline-block mr-2 text-primary-600" />
+                    Loading database telemetry...
+                  </td>
+                </tr>
+              ) : filteredComplaints.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-4 py-8 text-center text-secondary-500 font-medium">
                     No complaints match the selected filter criteria.
@@ -472,21 +576,21 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 filteredComplaints.map((c) => {
-                  const votes = getComplaintVotes(c._id, c.upvotes, c.downvotes);
-                  const verif = getComplaintVerification(c._id);
+                  const compId = c.id || c._id;
+                  const netScore = (c.upvotes_count ?? c.upvotes ?? 0) - (c.downvotes_count ?? c.downvotes ?? 0);
 
                   return (
                     <tr
-                      key={c._id}
+                      key={compId}
                       className="border-b border-secondary-100 last:border-0 hover:bg-secondary-50 transition-colors"
                     >
                       {/* 1. ID */}
                       <td className="px-3 py-3 font-extrabold text-primary-700">
                         <Link
-                          to={`/municipal/complaints/${c._id}`}
+                          to={`/municipal/complaints/${compId}`}
                           className="no-underline hover:underline"
                         >
-                          #{c._id}
+                          #{String(compId).slice(0, 8)}
                         </Link>
                       </td>
 
@@ -506,8 +610,8 @@ export default function Dashboard() {
                       </td>
 
                       {/* 5. Department */}
-                      <td className="px-3 py-3 font-medium text-secondary-800 truncate max-w-[160px]" title={c.department}>
-                        {c.department}
+                      <td className="px-3 py-3 font-medium text-secondary-800 truncate max-w-[160px]" title={c.department || c.assigned_department}>
+                        {c.department || c.assigned_department || 'General Administration'}
                       </td>
 
                       {/* 6. Status */}
@@ -519,31 +623,31 @@ export default function Dashboard() {
                       <td className="px-3 py-3 text-center">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-full font-extrabold text-[11px] ${
-                            votes.netScore > 0
+                            netScore > 0
                               ? 'bg-primary-50 text-primary-700 border border-primary-200'
-                              : votes.netScore < 0
+                              : netScore < 0
                               ? 'bg-red-50 text-red-700 border border-red-200'
                               : 'bg-secondary-100 text-secondary-600'
                           }`}
                         >
-                          {votes.netScore > 0 ? `+${votes.netScore}` : votes.netScore}
+                          {netScore > 0 ? `+${netScore}` : netScore}
                         </span>
                       </td>
 
                       {/* 8. Created */}
                       <td className="px-3 py-3 text-secondary-500 font-medium whitespace-nowrap">
-                        {timeAgo(c.createdAt)}
+                        {timeAgo(c.created_at || c.createdAt)}
                       </td>
 
-                      {/* 9. Community Confirmation */}
+                      {/* 9. Municipal Status Flag */}
                       <td className="px-3 py-3 font-bold whitespace-nowrap">
-                        {verif.totalResponses > 0 ? (
-                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            ✓ {verif.confirmationPct}% Confirmed ({verif.confirmedCount}/{verif.totalResponses})
+                        {c.flagged_for_review ? (
+                          <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200 flex items-center gap-1 w-fit">
+                            ⚠ Flagged ({c.dispute_count || 0} disputes)
                           </span>
                         ) : (
-                          <span className="text-secondary-400 font-medium text-[11px]">
-                            Pending Verification
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1 w-fit">
+                            ✓ Verified Active
                           </span>
                         )}
                       </td>
