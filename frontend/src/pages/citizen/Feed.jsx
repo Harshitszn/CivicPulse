@@ -41,33 +41,43 @@ function timeAgo(dateStr) {
 }
 
 // ── Single Visual Post Component ─────────────────────────────────────────────
-function VisualPostCard({ complaint }) {
-  const { registeredPincode, isEligibleToVote, castVote, getComplaintVotes, getComplaintComments } = usePincode();
+function VisualPostCard({ complaint, onVoteUpdated }) {
+  const { registeredPincode, isEligibleToVote, castVote, getComplaintComments } = usePincode();
   const [saved, setSaved] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
 
   const complaintId = complaint.id || complaint._id;
   const isEligible = isEligibleToVote(complaint.pincode);
-  const { upvotes, downvotes, netScore, userVote } = getComplaintVotes(
-    complaintId,
-    complaint.upvotes_count !== undefined ? complaint.upvotes_count : (complaint.upvotes || 0),
-    complaint.downvotes_count !== undefined ? complaint.downvotes_count : (complaint.downvotes || 0)
-  );
 
-  const { count: commentCount } = getComplaintComments(complaintId, complaint.commentCount || 0);
+  // Authoritative vote values directly from complaint (persisted in PostgreSQL)
+  const upvotes = complaint.upvotes_count !== undefined ? complaint.upvotes_count : (complaint.upvotes || 0);
+  const downvotes = complaint.downvotes_count !== undefined ? complaint.downvotes_count : (complaint.downvotes || 0);
+  const netScore = complaint.net_score !== undefined ? complaint.net_score : (upvotes - downvotes);
+
+  const rawUserVote = complaint.current_user_vote || complaint.currentUserVote;
+  const userVote = rawUserVote ? rawUserVote.toLowerCase() : null;
 
   const upvoted = userVote === 'upvote';
   const downvoted = userVote === 'downvote';
 
-  const handleUpvoteClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    castVote(complaintId, complaint.pincode, 'upvote');
-  };
+  const { count: commentCount } = getComplaintComments(complaintId, complaint.commentCount || 0);
 
-  const handleDownvoteClick = (e) => {
+  const handleVote = async (e, type) => {
     e.preventDefault();
     e.stopPropagation();
-    castVote(complaintId, complaint.pincode, 'downvote');
+    if (isVoting) return;
+
+    if (!isEligible) return;
+
+    try {
+      setIsVoting(true);
+      const res = await castVote(complaintId, complaint.pincode, type);
+      if (res && onVoteUpdated) {
+        onVoteUpdated(complaintId, res);
+      }
+    } finally {
+      setIsVoting(false);
+    }
   };
 
   const handleSave = (e) => {
@@ -173,8 +183,8 @@ function VisualPostCard({ complaint }) {
           <div className="flex items-center bg-secondary-100/90 rounded-lg p-1 border border-secondary-200/80">
             {/* Upvote Button */}
             <button
-              onClick={handleUpvoteClick}
-              disabled={!isEligible}
+              onClick={(e) => handleVote(e, 'upvote')}
+              disabled={!isEligible || isVoting}
               aria-label="Upvote issue"
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all min-h-[34px] ${
                 !isEligible
@@ -202,8 +212,8 @@ function VisualPostCard({ complaint }) {
 
             {/* Downvote Button */}
             <button
-              onClick={handleDownvoteClick}
-              disabled={!isEligible}
+              onClick={(e) => handleVote(e, 'downvote')}
+              disabled={!isEligible || isVoting}
               aria-label="Downvote issue"
               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold transition-all min-h-[34px] ${
                 !isEligible
@@ -310,6 +320,26 @@ export default function Feed() {
   useEffect(() => {
     fetchComplaints(1);
   }, [selectedBrowsingPincode, activeFilter, activeSort]);
+
+  const handleVoteUpdated = (complaintId, voteResult) => {
+    setComplaints((prev) =>
+      prev.map((c) => {
+        if ((c.id || c._id) === complaintId) {
+          return {
+            ...c,
+            upvotes: voteResult.upvotes,
+            upvotes_count: voteResult.upvotes,
+            downvotes: voteResult.downvotes,
+            downvotes_count: voteResult.downvotes,
+            net_score: voteResult.net_score,
+            current_user_vote: voteResult.current_user_vote,
+            currentUserVote: voteResult.current_user_vote,
+          };
+        }
+        return c;
+      })
+    );
+  };
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -479,7 +509,11 @@ export default function Feed() {
         {!loading && !error && complaints.length > 0 && (
           <>
             {complaints.map((complaint) => (
-              <VisualPostCard key={complaint.id || complaint._id} complaint={complaint} />
+              <VisualPostCard
+                key={complaint.id || complaint._id}
+                complaint={complaint}
+                onVoteUpdated={handleVoteUpdated}
+              />
             ))}
 
             {/* Pagination Controls */}

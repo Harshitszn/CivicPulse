@@ -19,6 +19,7 @@ router.get('/', optionalAuthenticate, complaintController.listComplaints);
 router.get('/insights', complaintController.getInsights);
 router.get('/:id', optionalAuthenticate, complaintController.getComplaint);
 router.post('/', authenticate, upload.array('images', 5), validate(complaintValidation), complaintController.createComplaint);
+router.post('/:id/vote', authenticate, complaintController.voteComplaint);
 router.patch('/:id', authenticate, complaintController.updateComplaint);
 router.patch('/:id/status', authenticate, requireRole('official', 'staff', 'admin'), complaintController.updateStatus);
 

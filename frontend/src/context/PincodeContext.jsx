@@ -817,62 +817,66 @@ export function PincodeProvider({ children }) {
     return String(registeredPincode).trim() === String(complaintPincode).trim();
   };
 
-  // Cast, switch, or remove vote with atomic delta updates and eligibility check
-  const castVote = (complaintId, complaintPincode, targetAction) => {
+  // Cast, switch, or remove vote with real database persistence and eligibility check
+  const castVote = async (complaintId, complaintPincode, targetAction) => {
     if (!isEligibleToVote(complaintPincode)) {
       toast.warning(`Only residents of pincode ${complaintPincode} can vote on this issue.`);
       return false;
     }
 
-    const currentVote = userVotes[complaintId];
-    let newVotes = { ...userVotes };
-    let newDeltas = { ...voteDeltas };
-    const currentDelta = newDeltas[complaintId] || { upDelta: 0, downDelta: 0 };
-
-    let upDiff = 0;
-    let downDiff = 0;
-
-    if (currentVote === targetAction) {
-      // Action: Remove vote
-      delete newVotes[complaintId];
-      if (targetAction === 'upvote') upDiff = -1;
-      if (targetAction === 'downvote') downDiff = -1;
-      toast.info('Vote removed.');
-    } else if (currentVote === 'upvote' && targetAction === 'downvote') {
-      // Action: Switch from Upvote to Downvote
-      newVotes[complaintId] = 'downvote';
-      upDiff = -1;
-      downDiff = 1;
-      toast.info('Vote changed to downvote.');
-    } else if (currentVote === 'downvote' && targetAction === 'upvote') {
-      // Action: Switch from Downvote to Upvote
-      newVotes[complaintId] = 'upvote';
-      upDiff = 1;
-      downDiff = -1;
-      toast.success('Vote changed to upvote.');
-    } else {
-      // Action: New Upvote or New Downvote
-      newVotes[complaintId] = targetAction;
-      if (targetAction === 'upvote') {
-        upDiff = 1;
-        toast.success('Vote recorded.');
-      } else {
-        downDiff = 1;
-        toast.info('Vote recorded.');
-      }
+    const token = ApiClient.getToken();
+    if (!token) {
+      toast.info('Please log in with your registered account to cast a civic vote.');
+      return false;
     }
 
-    newDeltas[complaintId] = {
-      upDelta: (currentDelta.upDelta || 0) + upDiff,
-      downDelta: (currentDelta.downDelta || 0) + downDiff,
-    };
+    try {
+      const voteType = targetAction === 'upvote' ? 'UPVOTE' : 'DOWNVOTE';
+      const result = await ApiClient.voteComplaint(complaintId, voteType);
 
-    setUserVotes(newVotes);
-    setVoteDeltas(newDeltas);
-    localStorage.setItem('civicpulse_user_votes', JSON.stringify(newVotes));
-    localStorage.setItem('civicpulse_vote_deltas', JSON.stringify(newDeltas));
+      const newVote = result.current_user_vote ? result.current_user_vote.toLowerCase() : null;
+      let newVotes = { ...userVotes };
+      if (newVote) {
+        newVotes[complaintId] = newVote;
+      } else {
+        delete newVotes[complaintId];
+      }
 
-    return true;
+      setUserVotes(newVotes);
+      localStorage.setItem('civicpulse_user_votes', JSON.stringify(newVotes));
+
+      // Update complaint in allComplaints master state
+      setAllComplaints((prev) =>
+        prev.map((c) => {
+          if (c._id === complaintId || c.id === complaintId) {
+            return {
+              ...c,
+              upvotes: result.upvotes,
+              downvotes: result.downvotes,
+              upvotes_count: result.upvotes,
+              downvotes_count: result.downvotes,
+              net_score: result.net_score,
+              current_user_vote: result.current_user_vote,
+              currentUserVote: result.current_user_vote,
+            };
+          }
+          return c;
+        })
+      );
+
+      if (newVote === 'upvote') {
+        toast.success('Upvote recorded.');
+      } else if (newVote === 'downvote') {
+        toast.info('Downvote recorded.');
+      } else {
+        toast.info('Vote removed.');
+      }
+
+      return result;
+    } catch (err) {
+      toast.error(err.message || 'Voting failed');
+      return false;
+    }
   };
 
   // Get current Upvotes, Downvotes, and Net Score for any complaint

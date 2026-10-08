@@ -69,7 +69,7 @@ const createComplaint = async (req, res, next) => {
 
 const getComplaint = async (req, res, next) => {
   try {
-    const complaint = await ComplaintService.getComplaintById(req.params.id);
+    const complaint = await ComplaintService.getComplaintById(req.params.id, req.user?.id);
     return ApiResponse.ok(res, { complaint });
   } catch (err) {
     next(err);
@@ -100,23 +100,26 @@ const listComplaints = async (req, res, next) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
     const calculatedOffset = offset !== undefined ? Math.max(0, parseInt(offset, 10)) : (pageNum - 1) * limitNum;
 
-    const result = await ComplaintService.listComplaints({
-      pincode,
-      category,
-      status,
-      priority,
-      sort: sort || sortBy || 'top',
-      sortBy,
-      sortOrder,
-      page: pageNum,
-      limit: limitNum,
-      offset: calculatedOffset,
-      userId,
-      search,
-      nearLat: nearLat ? parseFloat(nearLat) : undefined,
-      nearLng: nearLng ? parseFloat(nearLng) : undefined,
-      radiusMeters: radiusMeters ? parseInt(radiusMeters, 10) : undefined,
-    });
+    const result = await ComplaintService.listComplaints(
+      {
+        pincode,
+        category,
+        status,
+        priority,
+        sort: sort || sortBy || 'top',
+        sortBy,
+        sortOrder,
+        page: pageNum,
+        limit: limitNum,
+        offset: calculatedOffset,
+        userId,
+        search,
+        nearLat: nearLat ? parseFloat(nearLat) : undefined,
+        nearLng: nearLng ? parseFloat(nearLng) : undefined,
+        radiusMeters: radiusMeters ? parseInt(radiusMeters, 10) : undefined,
+      },
+      req.user?.id
+    );
 
     const total = result.pagination.total;
     const totalPages = Math.ceil(total / limitNum);
@@ -134,6 +137,24 @@ const listComplaints = async (req, res, next) => {
     };
 
     return ApiResponse.paginated(res, result.complaints, paginationData, 'Complaints retrieved successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const voteComplaint = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const rawVoteType = req.body.vote_type || req.body.voteType || req.body.type || req.body.vote;
+
+    const result = await ComplaintService.voteComplaint({
+      complaintId: id,
+      userId: req.user.id,
+      userPincode: req.user.pincode,
+      rawVoteType,
+    });
+
+    return ApiResponse.ok(res, result, 'Vote recorded successfully');
   } catch (err) {
     next(err);
   }
@@ -180,6 +201,7 @@ module.exports = {
   createComplaint,
   getComplaint,
   listComplaints,
+  voteComplaint,
   updateComplaint,
   updateStatus,
   getInsights,

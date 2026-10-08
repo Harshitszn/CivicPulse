@@ -2,6 +2,7 @@
  * Complaint Service
  */
 const ComplaintModel = require('../models/Complaint');
+const VoteModel = require('../models/Vote');
 const AiService = require('./aiService');
 const ApiError = require('../utils/ApiError');
 const { db } = require('../config/database');
@@ -90,25 +91,50 @@ class ComplaintService {
     return complaint;
   }
 
-  static async getComplaintById(id) {
+  static async getComplaintById(id, currentUserId = null) {
     const complaint = await ComplaintModel.findById(id);
     if (!complaint) {
       throw ApiError.notFound('Complaint not found');
     }
+    if (currentUserId) {
+      const userVote = await VoteModel.findUserVote(currentUserId, id);
+      complaint.current_user_vote = userVote?.vote_type ? userVote.vote_type.toUpperCase() : null;
+      complaint.currentUserVote = complaint.current_user_vote;
+    }
     return complaint;
   }
 
-  static async listComplaints(filters) {
+  static async listComplaints(filters, currentUserId = null) {
     const complaints = await ComplaintModel.list(filters);
     const total = await ComplaintModel.count(filters);
+
+    if (currentUserId && complaints.length > 0) {
+      const ids = complaints.map((c) => c.id || c._id);
+      const voteMap = await VoteModel.findUserVotesForComplaints(currentUserId, ids);
+      for (const c of complaints) {
+        c.current_user_vote = voteMap[c.id || c._id] || null;
+        c.currentUserVote = c.current_user_vote;
+      }
+    }
+
     return {
       complaints,
       pagination: {
         total,
+        page: filters.page || 1,
         limit: filters.limit || 50,
         offset: filters.offset || 0,
       },
     };
+  }
+
+  static async voteComplaint({ complaintId, userId, userPincode, rawVoteType }) {
+    return VoteModel.castVote({
+      userId,
+      complaintId,
+      rawVoteType,
+      userPincode,
+    });
   }
 
   static async updateComplaint(id, updates, userId, userRole) {

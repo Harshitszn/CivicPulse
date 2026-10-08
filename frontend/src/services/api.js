@@ -143,6 +143,14 @@ class ApiClient {
     return res.data?.complaint || res.data;
   }
 
+  static async voteComplaint(complaintId, voteType) {
+    const res = await ApiClient.request(`/complaints/${complaintId}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ vote_type: voteType }),
+    });
+    return res.data;
+  }
+
   // Upload endpoints
   static async uploadComplaintImage(file, complaintId = null) {
     const formData = new FormData();
