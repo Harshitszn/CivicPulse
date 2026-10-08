@@ -187,6 +187,53 @@ const updateStatus = async (req, res, next) => {
   }
 };
 
+const getMyComplaints = async (req, res, next) => {
+  try {
+    const { status, sort, page = 1, limit = 20 } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    const result = await ComplaintService.listComplaints(
+      {
+        userId: req.user.id,
+        status,
+        sort: sort || 'new',
+        page: pageNum,
+        limit: limitNum,
+        offset,
+      },
+      req.user.id
+    );
+
+    const total = result.pagination.total;
+    const totalPages = Math.ceil(total / limitNum);
+    const paginationData = {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      pages: totalPages,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1,
+    };
+
+    return ApiResponse.paginated(res, result.complaints, paginationData, 'My complaints retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getStatusHistory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const history = await ComplaintService.getStatusHistory(id);
+    return ApiResponse.ok(res, { history }, 'Status history retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getInsights = async (req, res, next) => {
   try {
     const { pincode } = req.query;
@@ -201,6 +248,8 @@ module.exports = {
   createComplaint,
   getComplaint,
   listComplaints,
+  getMyComplaints,
+  getStatusHistory,
   voteComplaint,
   updateComplaint,
   updateStatus,

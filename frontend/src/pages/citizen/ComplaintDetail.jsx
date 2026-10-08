@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, ThumbsUp, ThumbsDown, MessageCircle, MapPin, Clock,
-  Share2, Flag, CheckCircle2, Clock3, AlertCircle, XCircle, Lock,
+  Share2, CheckCircle2, Lock, AlertCircle, RefreshCw, Building2,
+  History, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Badge, { StatusBadge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import StatusTimeline from '../../components/ui/StatusTimeline';
@@ -11,111 +12,240 @@ import Button from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Input';
 import { useToast } from '../../context/ToastContext';
 import { usePincode } from '../../context/PincodeContext';
+import { useAuth } from '../../context/AuthContext';
 import ApiClient from '../../services/api';
 
-const MOCK_COMPLAINT = {
-  _id: '1',
-  title: 'Giant pothole on MG Road near bus stop causing accidents',
-  description: `There is a massive pothole measuring approximately 3 feet wide and 6 inches deep near the City Bus Stop 12 on MG Road. This pothole has been present for over two weeks now and has caused multiple two-wheeler accidents. Residents in the area are extremely concerned about their safety.\n\nThe pothole appears to have developed due to recent rain and poor road quality. Multiple vehicles have already suffered tyre damage. The area is heavily trafficked and is near a school zone.`,
-  category: 'roads', status: 'in_progress', priority: 'high',
-  upvotes: 128, downvotes: 4, commentCount: 23,
-  location: { address: 'MG Road, near Bus Stop 12', pincode: '560001', ward: 'Ward 47', city: 'Bengaluru' },
-  reportedBy: { name: 'Priya Sharma', avatar: null },
-  assignedTo: { name: 'Roads & Infrastructure Dept.' },
-  createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  images: [],
-  isVerified: false,
-};
-
-const STATUS_TIMELINE = [
-  { status: 'open',        label: 'Reported',    date: '2 hours ago',  done: true  },
-  { status: 'acknowledged',label: 'Acknowledged', date: '1 hour ago',   done: true  },
-  { status: 'in_progress', label: 'In Progress',  date: '30 mins ago',  done: true  },
-  { status: 'resolved',    label: 'Resolved',     date: 'Pending',      done: false },
-];
-
-const MOCK_COMMENTS = [
-  { _id: 'c1', author: { name: 'Ravi Kumar', role: 'citizen' }, content: 'I also witnessed an accident here yesterday. This needs immediate fixing!', createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), isOfficialUpdate: false },
-  { _id: 'c2', author: { name: 'Roads Dept. Officer', role: 'municipal_officer' }, content: 'We have received your complaint and a site inspection has been scheduled for tomorrow morning. Work order has been issued.', createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(), isOfficialUpdate: true },
-  { _id: 'c3', author: { name: 'Meena S.', role: 'citizen' }, content: 'Thank you for the quick response! We really appreciate it.', createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(), isOfficialUpdate: false },
-];
-
 function timeAgo(d) {
+  if (!d) return 'recently';
   const diff = Date.now() - new Date(d).getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
-  return `${Math.floor(mins / 60)}h ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function StatusHistoryItem({ entry, isFirst }) {
+  const fromLabel = entry.from_status || entry.old_status;
+  const toLabel = entry.to_status || entry.new_status;
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${isFirst ? 'bg-secondary-400' : 'bg-primary-600'}`} />
+        {!isFirst && <div className="w-px flex-1 bg-secondary-200 mt-1" />}
+      </div>
+      <div className="pb-4 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          {fromLabel && (
+            <span className="text-[10px] bg-secondary-100 text-secondary-600 px-1.5 py-0.5 rounded font-semibold uppercase">{fromLabel}</span>
+          )}
+          {fromLabel && <span className="text-secondary-300 text-xs">→</span>}
+          <span className="text-[10px] bg-primary-50 text-primary-700 border border-primary-200 px-1.5 py-0.5 rounded font-bold uppercase">{toLabel}</span>
+        </div>
+        <p className="text-[11px] text-secondary-500 mt-0.5">
+          <span className="font-semibold text-secondary-700">{entry.changed_by_name || 'System'}</span>
+          {entry.changed_by_role && entry.changed_by_role !== 'system' && (
+            <span className="ml-1 text-primary-600 font-medium">({entry.changed_by_role})</span>
+          )}
+          {' · '}{timeAgo(entry.timestamp || entry.created_at)}
+        </p>
+        {entry.notes && (
+          <p className="text-[11px] text-secondary-600 mt-0.5 italic">"{entry.notes}"</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function ComplaintDetail() {
   const { id } = useParams();
-  const location = useLocation();
   const { toast } = useToast();
-  const { registeredPincode, isEligibleToVote, castVote, getComplaintVotes, getComplaintComments, addComment, allComplaints } = usePincode();
+  const { registeredPincode, isEligibleToVote } = usePincode();
+  const { currentUser } = useAuth();
 
-  const [apiComplaint, setApiComplaint] = useState(null);
+  // ── Data States ──────────────────────────────────────────────────────────
+  const [complaint, setComplaint] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  React.useEffect(() => {
-    const inStore = allComplaints?.find((item) => String(item._id) === String(id) || String(item.id) === String(id));
-    if (!inStore && id) {
-      ApiClient.getComplaintById(id)
-        .then((comp) => {
-          if (comp) setApiComplaint(comp);
-        })
-        .catch(() => {});
-    }
-  }, [id, allComplaints]);
+  const [comments, setComments] = useState([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
-  const activeComplaint = React.useMemo(() => {
-    if (allComplaints) {
-      const found = allComplaints.find((item) => String(item._id) === String(id) || String(item.id) === String(id));
-      if (found) return found;
-    }
-    if (apiComplaint) return apiComplaint;
-    if (location.state?.complaint) return location.state.complaint;
-    return MOCK_COMPLAINT;
-  }, [allComplaints, apiComplaint, id, location.state]);
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
-  const isEligible = isEligibleToVote(activeComplaint.pincode);
-  const { upvotes, downvotes, netScore, userVote } = getComplaintVotes(
-    activeComplaint._id,
-    activeComplaint.upvotes,
-    activeComplaint.downvotes
-  );
+  // ── Vote State ────────────────────────────────────────────────────────────
+  const [isVoting, setIsVoting] = useState(false);
 
-  const upvoted = userVote === 'upvote';
-  const downvoted = userVote === 'downvote';
-
-  const { comments, count: commentCount } = getComplaintComments(activeComplaint._id, activeComplaint.commentCount || 0);
-
+  // ── Comment State ─────────────────────────────────────────────────────────
   const [commentText, setCommentText] = useState('');
   const [isAnonymousComment, setIsAnonymousComment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleUpvote = () => {
-    castVote(activeComplaint._id, activeComplaint.pincode, 'upvote');
+  // ── Fetch Complaint ───────────────────────────────────────────────────────
+  const fetchComplaint = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ApiClient.getComplaintById(id);
+      setComplaint(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load complaint');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  // ── Fetch Comments ────────────────────────────────────────────────────────
+  const fetchComments = useCallback(async () => {
+    if (!id) return;
+    setCommentsLoading(true);
+    try {
+      const data = await ApiClient.getComments(id);
+      setComments(Array.isArray(data) ? data : []);
+    } catch {
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [id]);
+
+  // ── Fetch Status History ──────────────────────────────────────────────────
+  const fetchStatusHistory = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await ApiClient.getStatusHistory(id);
+      setStatusHistory(Array.isArray(data) ? data : []);
+    } catch {
+      setStatusHistory([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchComplaint();
+    fetchComments();
+    fetchStatusHistory();
+  }, [fetchComplaint, fetchComments, fetchStatusHistory]);
+
+  // ── Derived vote values ───────────────────────────────────────────────────
+  const upvotes = complaint?.upvotes_count ?? complaint?.upvotes ?? 0;
+  const downvotes = complaint?.downvotes_count ?? complaint?.downvotes ?? 0;
+  const netScore = complaint?.net_score ?? (upvotes - downvotes);
+  const rawUserVote = complaint?.current_user_vote || complaint?.currentUserVote;
+  const userVote = rawUserVote ? rawUserVote.toLowerCase() : null;
+  const upvoted = userVote === 'upvote';
+  const downvoted = userVote === 'downvote';
+
+  const complaintPincode = complaint?.pincode;
+  const isEligible = complaintPincode ? isEligibleToVote(complaintPincode) : false;
+
+  // ── Vote Handler ──────────────────────────────────────────────────────────
+  const handleVote = async (type) => {
+    if (!isEligible) return;
+    if (isVoting) return;
+    const token = ApiClient.getToken();
+    if (!token) {
+      toast.info('Please log in to vote.');
+      return;
+    }
+    try {
+      setIsVoting(true);
+      const res = await ApiClient.voteComplaint(id, type === 'upvote' ? 'UPVOTE' : 'DOWNVOTE');
+      setComplaint((prev) => ({
+        ...prev,
+        upvotes_count: res.upvotes,
+        upvotes: res.upvotes,
+        downvotes_count: res.downvotes,
+        downvotes: res.downvotes,
+        net_score: res.net_score,
+        current_user_vote: res.current_user_vote,
+        currentUserVote: res.current_user_vote,
+      }));
+      const vote = res.current_user_vote?.toLowerCase();
+      if (vote === 'upvote') toast.success('Upvote recorded.');
+      else if (vote === 'downvote') toast.info('Downvote recorded.');
+      else toast.info('Vote removed.');
+    } catch (err) {
+      toast.error(err.message || 'Voting failed');
+    } finally {
+      setIsVoting(false);
+    }
   };
 
-  const handleDownvote = () => {
-    castVote(activeComplaint._id, activeComplaint.pincode, 'downvote');
-  };
-
+  // ── Comment Submission ────────────────────────────────────────────────────
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
     if (!commentText.trim()) return;
-
+    const token = ApiClient.getToken();
+    if (!token) {
+      toast.info('Please log in to comment.');
+      return;
+    }
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 400));
-
-    addComment(activeComplaint._id, {
-      content: commentText,
-      isAnonymous: isAnonymousComment,
-      authorName: 'Priya Sharma',
-    });
-
-    setCommentText('');
-    setSubmitting(false);
+    try {
+      const newComment = await ApiClient.addComment(id, commentText.trim(), isAnonymousComment);
+      if (newComment) {
+        setComments((prev) => [
+          ...prev,
+          {
+            ...newComment,
+            _id: newComment.id || newComment._id,
+            author: {
+              name: isAnonymousComment ? 'Anonymous Resident' : (currentUser?.name || currentUser?.full_name || 'You'),
+              isOfficial: currentUser?.role === 'official' || currentUser?.role === 'admin',
+            },
+            content: commentText.trim(),
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        setCommentText('');
+        toast.success('Comment posted!');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to post comment');
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  // ── Loading State ─────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="w-full max-w-4xl mx-auto pb-12 animate-fade-in">
+        <Link to="/feed" className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary-500 hover:text-primary-600 mb-4 no-underline transition-colors">
+          <ArrowLeft size={14} /> Back to Feed
+        </Link>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white border border-secondary-200 rounded-xl h-24 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !complaint) {
+    return (
+      <div className="w-full max-w-4xl mx-auto pb-12 animate-fade-in">
+        <Link to="/feed" className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary-500 hover:text-primary-600 mb-4 no-underline transition-colors">
+          <ArrowLeft size={14} /> Back to Feed
+        </Link>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <AlertCircle size={28} className="text-red-400 mx-auto mb-2" />
+          <p className="text-sm font-bold text-red-700">{error || 'Complaint not found'}</p>
+          <button onClick={fetchComplaint} className="mt-3 text-xs font-semibold text-primary-600 hover:underline flex items-center gap-1 mx-auto">
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const imageUrl = complaint.imageUrl || (complaint.image_urls && complaint.image_urls[0]) || null;
+  const reportedBy = complaint.reportedBy || {};
+  const department = complaint.department || complaint.assigned_department || 'Municipal Works';
 
   return (
     <div className="animate-fade-in w-full max-w-4xl mx-auto pb-12">
@@ -128,88 +258,90 @@ export default function ComplaintDetail() {
       {/* Complaint Header */}
       <div className="mb-4">
         <div className="flex items-center gap-2 flex-wrap mb-2">
-          <CategoryBadge category={activeComplaint.categorySlug || activeComplaint.category} />
-          <StatusBadge status={activeComplaint.status} />
-          <PriorityBadge priority={activeComplaint.priority} />
+          <CategoryBadge category={complaint.categorySlug || complaint.category} />
+          <StatusBadge status={complaint.status} />
+          <PriorityBadge priority={complaint.priority} />
         </div>
-        <h1 className="text-lg font-bold text-secondary-900 leading-snug">{activeComplaint.title}</h1>
-        <div className="flex items-center gap-3 mt-2 text-xs text-secondary-400">
+        <h1 className="text-lg font-bold text-secondary-900 leading-snug">{complaint.title}</h1>
+        <div className="flex items-center gap-3 mt-2 text-xs text-secondary-400 flex-wrap">
           <span className="flex items-center gap-1 font-medium text-secondary-700">
             <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden">
-              {activeComplaint.reportedBy?.avatar ? (
-                <img src={activeComplaint.reportedBy.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              {reportedBy.avatar ? (
+                <img src={reportedBy.avatar} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-[9px] text-primary-700 font-bold">
-                  {activeComplaint.reportedBy?.isAnonymous ? 'A' : (activeComplaint.reportedBy?.name?.charAt(0) || 'U')}
+                  {reportedBy.isAnonymous ? 'A' : (reportedBy.name?.charAt(0) || 'U')}
                 </span>
               )}
             </div>
-            {activeComplaint.reportedBy?.isAnonymous ? 'Anonymous Resident' : (activeComplaint.reportedBy?.name || 'Citizen')}
+            {reportedBy.isAnonymous ? 'Anonymous Resident' : (reportedBy.name || 'Citizen')}
           </span>
-          <span className="flex items-center gap-0.5"><Clock size={10} />{timeAgo(activeComplaint.createdAt)}</span>
+          <span className="flex items-center gap-0.5"><Clock size={10} />{timeAgo(complaint.created_at || complaint.createdAt)}</span>
           <span className="flex items-center gap-0.5 font-bold text-primary-700 bg-primary-50 px-2 py-0.5 rounded border border-primary-200">
             <MapPin size={10} />
-            PIN: {activeComplaint.pincode}
+            PIN: {complaint.pincode}
+          </span>
+          <span className="flex items-center gap-0.5 text-secondary-500">
+            <Building2 size={10} />
+            {department}
           </span>
         </div>
       </div>
 
-      {/* Photo Preview if attached */}
-      {activeComplaint.imageUrl && (
+      {/* Photo Preview */}
+      {imageUrl && (
         <div className="mb-4 rounded-xl overflow-hidden border border-secondary-200 aspect-video bg-black shadow-card">
-          <img src={activeComplaint.imageUrl} alt={activeComplaint.title} className="w-full h-full object-cover" />
+          <img src={imageUrl} alt={complaint.title} className="w-full h-full object-cover" />
         </div>
       )}
 
-      {/* Description Body */}
+      {/* Description */}
       <div className="bg-surface border border-secondary-200 rounded-xl p-4 mb-4 shadow-card">
         <p className="text-xs text-secondary-700 whitespace-pre-line leading-relaxed">
-          {activeComplaint.description}
+          {complaint.description}
         </p>
+        {complaint.estimated_resolution_time && (
+          <p className="mt-3 text-xs text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 inline-flex items-center gap-1.5 font-medium">
+            <Clock size={11} className="text-amber-600" />
+            Estimated Resolution: <strong>{complaint.estimated_resolution_time}</strong>
+          </p>
+        )}
       </div>
 
-      {/* Vote + Share Controls */}
+      {/* Vote Controls */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          {/* Voting Action Group */}
           <div className="flex items-center bg-secondary-100/90 rounded-xl p-1 border border-secondary-200">
-            {/* Upvote Button */}
             <button
-              onClick={handleUpvote}
-              disabled={!isEligible}
+              onClick={() => handleVote('upvote')}
+              disabled={!isEligible || isVoting}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all min-h-[40px] ${
-                !isEligible
-                  ? 'opacity-40 cursor-not-allowed text-secondary-400'
-                  : upvoted
-                  ? 'bg-primary-600 text-white shadow-sm scale-95'
+                !isEligible ? 'opacity-40 cursor-not-allowed text-secondary-400'
+                  : upvoted ? 'bg-primary-600 text-white shadow-sm scale-95'
                   : 'bg-white text-secondary-700 hover:text-primary-600 hover:bg-secondary-50'
               }`}
-              title={isEligible ? (upvoted ? 'Remove upvote' : 'Upvote issue') : `Only residents of ${activeComplaint.pincode} can vote`}
+              title={isEligible ? (upvoted ? 'Remove upvote' : 'Upvote issue') : `Only residents of ${complaintPincode} can vote`}
             >
               <ThumbsUp size={15} fill={upvoted ? 'currentColor' : 'none'} />
               <span>{upvotes} Upvotes</span>
             </button>
 
-            {/* Net Score Badge */}
             <div className="px-3 text-center" title="Net Score = Upvotes - Downvotes">
-              <span className={`text-xs font-extrabold block ${netScore > 0 ? 'text-primary-700' : netScore < 0 ? 'text-error' : 'text-secondary-600'}`}>
+              <span className={`text-xs font-extrabold block ${netScore > 0 ? 'text-primary-700' : netScore < 0 ? 'text-red-600' : 'text-secondary-600'}`}>
                 {netScore > 0 ? `+${netScore}` : netScore}
               </span>
               <span className="text-[9px] text-secondary-400 font-semibold uppercase tracking-tighter">Net Score</span>
             </div>
 
-            {/* Downvote Button */}
             <button
-              onClick={handleDownvote}
-              disabled={!isEligible}
+              onClick={() => handleVote('downvote')}
+              disabled={!isEligible || isVoting}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all min-h-[40px] ${
-                !isEligible
-                  ? 'opacity-40 cursor-not-allowed text-secondary-400'
-                  : downvoted
-                  ? 'bg-error text-white shadow-sm scale-95'
-                  : 'bg-white text-secondary-700 hover:text-error hover:bg-secondary-50'
+                !isEligible ? 'opacity-40 cursor-not-allowed text-secondary-400'
+                  : downvoted ? 'bg-red-500 text-white shadow-sm scale-95'
+                  : 'bg-white text-secondary-700 hover:text-red-500 hover:bg-secondary-50'
               }`}
-              title={isEligible ? (downvoted ? 'Remove downvote' : 'Downvote issue') : `Only residents of ${activeComplaint.pincode} can vote`}
+              title={isEligible ? (downvoted ? 'Remove downvote' : 'Downvote issue') : `Only residents of ${complaintPincode} can vote`}
             >
               <ThumbsDown size={15} fill={downvoted ? 'currentColor' : 'none'} />
               <span>{downvotes} Downvotes</span>
@@ -225,25 +357,53 @@ export default function ComplaintDetail() {
         {!isEligible && (
           <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
             <Lock size={13} className="text-amber-600 flex-shrink-0" />
-            <span>Only residents of this pincode ({activeComplaint.pincode}) can vote on this issue. (Your pincode: {registeredPincode})</span>
+            <span>Only residents of this pincode ({complaintPincode}) can vote. (Your registered pincode: {registeredPincode})</span>
           </div>
         )}
       </div>
 
-      {/* Reusable 5-Stage Status Timeline Component */}
-      <StatusTimeline currentStatus={activeComplaint.status} className="mb-5" />
+      {/* 5-Stage Status Timeline */}
+      <StatusTimeline currentStatus={complaint.status} className="mb-5" />
 
-      {/* Citizen Status Verification (Displays when In Progress or Resolved) */}
-      <CitizenVerificationCard complaintId={activeComplaint._id} status={activeComplaint.status} className="mb-5" />
+      {/* Citizen Verification Card */}
+      <CitizenVerificationCard complaintId={complaint.id || complaint._id} status={complaint.status} className="mb-5" />
 
-      {/* ── Community Discussion & Comments Section ──────────────────────── */}
+      {/* Status Change History (Collapsible) */}
+      {statusHistory.length > 0 && (
+        <div className="bg-surface border border-secondary-200 rounded-xl mb-5 shadow-card overflow-hidden">
+          <button
+            onClick={() => setHistoryOpen((o) => !o)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-secondary-50 transition-colors"
+          >
+            <span className="text-sm font-extrabold text-secondary-900 flex items-center gap-2">
+              <History size={16} className="text-primary-600" />
+              Status Change History ({statusHistory.length} events)
+            </span>
+            {historyOpen ? <ChevronUp size={16} className="text-secondary-400" /> : <ChevronDown size={16} className="text-secondary-400" />}
+          </button>
+
+          {historyOpen && (
+            <div className="px-4 pb-4 border-t border-secondary-100 pt-4">
+              {statusHistory.map((entry, idx) => (
+                <StatusHistoryItem key={entry.id || idx} entry={entry} isFirst={idx === statusHistory.length - 1} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Community Discussion & Comments */}
       <div className="bg-surface border border-secondary-200 rounded-xl p-5 shadow-card space-y-4">
         <div className="flex items-center justify-between border-b border-secondary-100 pb-3">
           <h3 className="text-sm font-extrabold text-secondary-900 flex items-center gap-2">
             <MessageCircle size={17} className="text-primary-600" />
-            Community Discussion ({commentCount})
+            Community Discussion ({comments.length})
           </h3>
-          <span className="text-xs text-secondary-400">Reddit-style linear feed</span>
+          {commentsLoading && (
+            <span className="text-xs text-secondary-400 flex items-center gap-1">
+              <RefreshCw size={11} className="animate-spin" /> Loading...
+            </span>
+          )}
         </div>
 
         {/* Comment Composer */}
@@ -262,7 +422,6 @@ export default function ComplaintDetail() {
           </div>
 
           <div className="flex items-center justify-between flex-wrap gap-2">
-            {/* Identity toggle */}
             <div className="flex items-center gap-3">
               <label className="text-xs font-medium text-secondary-600 flex items-center gap-1.5 cursor-pointer">
                 <input
@@ -272,9 +431,8 @@ export default function ComplaintDetail() {
                   onChange={() => setIsAnonymousComment(false)}
                   className="accent-primary-600"
                 />
-                <span>Public (Priya Sharma)</span>
+                <span>Public ({currentUser?.name || currentUser?.full_name || 'You'})</span>
               </label>
-
               <label className="text-xs font-medium text-secondary-600 flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="radio"
@@ -286,70 +444,66 @@ export default function ComplaintDetail() {
                 <span>Anonymous Resident</span>
               </label>
             </div>
-
             <Button
               type="submit"
               variant="primary"
               size="sm"
               loading={submitting}
-              disabled={!commentText.trim() || submitting}
+              disabled={!commentText.trim() || submitting || !ApiClient.getToken()}
               className="font-bold text-xs px-4"
-              title={!commentText.trim() ? 'Type a comment before posting' : ''}
+              title={!ApiClient.getToken() ? 'Log in to comment' : (!commentText.trim() ? 'Type a comment before posting' : '')}
             >
               {submitting ? 'Posting...' : 'Post Comment'}
             </Button>
           </div>
+          {!ApiClient.getToken() && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+              <Lock size={10} className="inline mr-1" />
+              <Link to="/login" className="font-bold text-primary-600 hover:underline">Log in</Link> to join the discussion.
+            </p>
+          )}
         </form>
 
         {/* Comments List */}
         <div className="space-y-3 pt-2">
-          {comments.map((c) => (
-            <div
-              key={c._id}
-              className={`p-3.5 rounded-xl border transition-all text-xs ${
-                c.author?.isOfficial
-                  ? 'bg-blue-50/80 border-blue-200'
-                  : 'bg-white border-secondary-200'
-              }`}
-            >
-              {/* Comment Header */}
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 ${
-                    c.author?.isOfficial ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-700'
-                  }`}>
-                    {c.author?.avatar ? (
-                      <img src={c.author.avatar} alt={c.author.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span>{c.author?.name ? c.author.name.charAt(0) : 'A'}</span>
-                    )}
+          {comments.map((c, idx) => {
+            const isOfficial = c.is_official || c.author?.isOfficial;
+            const authorName = c.is_anonymous ? 'Anonymous Resident' : (c.author?.name || c.user_name || c.author_name || 'Resident');
+            return (
+              <div
+                key={c.id || c._id || idx}
+                className={`p-3.5 rounded-xl border transition-all text-xs ${
+                  isOfficial ? 'bg-blue-50/80 border-blue-200' : 'bg-white border-secondary-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden flex-shrink-0 ${
+                      isOfficial ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-700'
+                    }`}>
+                      {c.author?.avatar ? (
+                        <img src={c.author.avatar} alt={authorName} className="w-full h-full object-cover" />
+                      ) : (
+                        <span>{authorName.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-bold text-secondary-900 block leading-tight">{authorName}</span>
+                      {isOfficial && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 bg-primary-600 text-white text-[9px] font-extrabold rounded">
+                          OFFICIAL MUNICIPAL UPDATE
+                        </span>
+                      )}
+                    </div>
                   </div>
-
-                  <div>
-                    <span className="font-bold text-secondary-900 block leading-tight">
-                      {c.author?.name || 'Resident'}
-                    </span>
-                    {c.author?.isOfficial && (
-                      <span className="inline-block mt-0.5 px-1.5 py-0.5 bg-primary-600 text-white text-[9px] font-extrabold rounded">
-                        OFFICIAL MUNICIPAL UPDATE
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[10px] text-secondary-400 font-medium">{timeAgo(c.created_at || c.createdAt)}</span>
                 </div>
-
-                <span className="text-[10px] text-secondary-400 font-medium">
-                  {timeAgo(c.createdAt)}
-                </span>
+                <p className="text-secondary-700 leading-relaxed pl-9 whitespace-pre-line">{c.content}</p>
               </div>
+            );
+          })}
 
-              {/* Comment Text */}
-              <p className="text-secondary-700 leading-relaxed pl-9 whitespace-pre-line">
-                {c.content}
-              </p>
-            </div>
-          ))}
-
-          {comments.length === 0 && (
+          {comments.length === 0 && !commentsLoading && (
             <div className="flex flex-col items-center py-8 text-center gap-2">
               <div className="w-12 h-12 rounded-full bg-secondary-100 flex items-center justify-center mb-1">
                 <MessageCircle size={22} className="text-secondary-400" />

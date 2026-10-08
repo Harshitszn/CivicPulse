@@ -166,6 +166,49 @@ class ApiClient {
     return res.data?.image || res.data;
   }
 
+  // Comment endpoints
+  static async getComments(complaintId) {
+    const res = await ApiClient.request(`/comments/complaint/${complaintId}`);
+    return Array.isArray(res.data) ? res.data : (res.data?.comments || []);
+  }
+
+  static async addComment(complaintId, content, isAnonymous = false) {
+    const res = await ApiClient.request(`/comments/complaint/${complaintId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content, is_anonymous: isAnonymous }),
+    });
+    return res.data;
+  }
+
+  static async deleteComment(commentId) {
+    const res = await ApiClient.request(`/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+    return res.data;
+  }
+
+  // Status history
+  static async getStatusHistory(complaintId) {
+    const res = await ApiClient.request(`/complaints/${complaintId}/status-history`);
+    return Array.isArray(res.data) ? res.data : (res.data?.history || []);
+  }
+
+  // My complaints (current authenticated user)
+  static async getMyComplaints(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const endpoint = `/complaints/mine${qs ? `?${qs}` : ''}`;
+    const res = await ApiClient.request(endpoint);
+    const complaints = Array.isArray(res.data) ? res.data : (res.data?.complaints || []);
+    complaints.pagination = res.pagination || { page: 1, total: complaints.length, totalPages: 1 };
+    return complaints;
+  }
+
   // AI endpoints
   static async classifyComplaint(data) {
     const res = await ApiClient.request('/ai/classify', {

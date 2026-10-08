@@ -215,6 +215,33 @@ class ComplaintService {
     return updated;
   }
 
+  static async getStatusHistory(complaintId) {
+    const rows = await db('complaint_status_history')
+      .leftJoin('users', 'complaint_status_history.changed_by_user_id', '=', 'users.id')
+      .where('complaint_status_history.complaint_id', complaintId)
+      .select(
+        'complaint_status_history.*',
+        'users.full_name as changed_by_name',
+        'users.role as changed_by_role'
+      )
+      .orderBy('complaint_status_history.created_at', 'asc');
+
+    return rows.map((r) => ({
+      id: r.id,
+      complaint_id: r.complaint_id,
+      from_status: r.from_status,
+      to_status: r.to_status,
+      old_status: r.from_status,
+      new_status: r.to_status,
+      notes: r.notes || null,
+      changed_by: r.changed_by_user_id,
+      changed_by_name: r.changed_by_name || 'System',
+      changed_by_role: r.changed_by_role || 'system',
+      timestamp: r.created_at,
+      created_at: r.created_at,
+    }));
+  }
+
   static async getInsights(pincode) {
     let query = db('complaints');
     if (pincode && pincode !== 'all') query = query.where({ pincode });

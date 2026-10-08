@@ -17,10 +17,13 @@ const complaintValidation = [
 
 router.get('/', optionalAuthenticate, complaintController.listComplaints);
 router.get('/insights', complaintController.getInsights);
+router.get('/mine', authenticate, complaintController.getMyComplaints);
 router.get('/:id', optionalAuthenticate, complaintController.getComplaint);
+router.get('/:id/status-history', optionalAuthenticate, complaintController.getStatusHistory);
 router.post('/', authenticate, upload.array('images', 5), validate(complaintValidation), complaintController.createComplaint);
 router.post('/:id/vote', authenticate, complaintController.voteComplaint);
 router.patch('/:id', authenticate, complaintController.updateComplaint);
 router.patch('/:id/status', authenticate, requireRole('official', 'staff', 'admin'), complaintController.updateStatus);
+
 
 module.exports = router;
