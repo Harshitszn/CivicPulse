@@ -36,28 +36,27 @@ class ComplaintService {
       throw ApiError.badRequest('Pincode is required');
     }
 
-    // AI Classification & Triage
-    let finalCategory = category;
-    let finalPriority = priority;
-    let finalDept = assigned_department;
-    let finalEstRes = estimated_resolution_time || '2–4 Days';
-    let aiConfidence = 0.92;
-    let aiUrgency = 60;
+    // AI Classification & Triage through Backend Service Layer
+    const firstImageUrl = (image_urls && image_urls[0]) || null;
+    const aiTriage = await AiService.classifyComplaint({
+      title,
+      description,
+      imageUrl: firstImageUrl,
+    });
 
-    if (!finalCategory || !finalPriority || !finalDept) {
-      const aiTriage = await AiService.classifyComplaint(title, description);
-      finalCategory = finalCategory || aiTriage.category;
-      finalPriority = finalPriority || aiTriage.priority;
-      finalDept = finalDept || aiTriage.department;
-      aiConfidence = aiTriage.confidence;
-      aiUrgency = aiTriage.urgencyScore;
-    }
+    const finalCategory = category || aiTriage.category;
+    const finalPriority = priority || aiTriage.priority;
+    const finalDept = assigned_department || aiTriage.department;
+    const finalEstRes = estimated_resolution_time || aiTriage.estimated_resolution_time || '2–4 Days';
+    const finalRequirement = requirement && requirement.trim() ? requirement.trim() : aiTriage.requirement;
+    const aiConfidence = aiTriage.confidence;
+    const aiUrgency = aiTriage.urgencyScore;
 
     const complaint = await ComplaintModel.create({
       title: title.trim(),
       description: description.trim(),
       category: finalCategory,
-      requirement: requirement ? requirement.trim() : null,
+      requirement: finalRequirement,
       priority: finalPriority,
       status: status || 'REPORTED',
       address: address ? address.trim() : null,

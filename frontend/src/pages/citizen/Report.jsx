@@ -32,82 +32,12 @@ const SAMPLE_PHOTOS = [
   { label: 'Broken Light', key: 'light', url: 'https://images.unsplash.com/photo-1509114397022-ed747cca3f65?auto=format&fit=crop&w=800&q=80' },
 ];
 
-// AI Mock Classification Presets
-const MOCK_AI_PRESETS = {
-  pothole: {
-    category: 'Road Damage',
-    categorySlug: 'roads',
-    issue: 'Large Pothole',
-    department: 'Public Works Department',
-    priority: 'High',
-    estimatedResolution: '3–5 Days',
-    confidence: '94%',
-    title: 'Hazardous large pothole on main road corridor',
-    description: 'Visual AI detected severe asphalt degradation forming a deep pothole on the active carriageway. Urgent patching required to prevent vehicle accidents.',
-  },
-  garbage: {
-    category: 'Garbage & Sanitation',
-    categorySlug: 'garbage',
-    issue: 'Garbage Overflow',
-    department: 'Sanitation & Solid Waste Management',
-    priority: 'High',
-    estimatedResolution: '1–2 Days',
-    confidence: '96%',
-    title: 'Overflowing garbage pile creating sanitation hazard',
-    description: 'Visual AI detected uncollected solid municipal waste accumulating near public walkway. Priority clearance requested.',
-  },
-  water: {
-    category: 'Water Supply',
-    categorySlug: 'water',
-    issue: 'Water Leakage',
-    department: 'City Water Supply Board',
-    priority: 'Urgent',
-    estimatedResolution: '24–48 Hours',
-    confidence: '98%',
-    title: 'Burst pipe water leakage spilling on public street',
-    description: 'Visual AI identified active clean water pipeline leak under pressure. Urgent valve isolation required.',
-  },
-  drainage: {
-    category: 'Stormwater & Drainage',
-    categorySlug: 'drainage',
-    issue: 'Drainage Blockage',
-    department: 'Stormwater Drainage Department',
-    priority: 'High',
-    estimatedResolution: '2–3 Days',
-    confidence: '91%',
-    title: 'Blocked storm drain causing localized waterlogging',
-    description: 'Visual AI detected clogged drainage inlet grate resulting in stagnant water buildup on the road.',
-  },
-  light: {
-    category: 'Street Lighting',
-    categorySlug: 'streetlights',
-    issue: 'Broken Streetlight',
-    department: 'Electricity & Public Lighting Department',
-    priority: 'Medium',
-    estimatedResolution: '1–3 Days',
-    confidence: '93%',
-    title: 'Unfunctional streetlight luminaire causing dark patch',
-    description: 'Visual AI detected broken or inactive streetlight fixture along public road stretch.',
-  },
-  footpath: {
-    category: 'Public Infrastructure',
-    categorySlug: 'infra',
-    issue: 'Damaged Footpath',
-    department: 'Pedestrian Infrastructure Dept',
-    priority: 'Medium',
-    estimatedResolution: '4–7 Days',
-    confidence: '89%',
-    title: 'Cracked paving tiles creating pedestrian hazard',
-    description: 'Visual AI identified broken footpath tiles and uneven surface creating trip hazards for pedestrians.',
-  },
-};
-
 const AI_STEPS = [
-  'Analyzing image...',
-  'Identifying issue...',
-  'Determining category...',
-  'Selecting department...',
-  'Estimating priority...',
+  'Uploading data to AI service...',
+  'Analyzing visual & text features...',
+  'Determining civic category...',
+  'Selecting municipal department...',
+  'Estimating priority & resolution time...',
 ];
 
 export default function Report() {
@@ -146,38 +76,45 @@ export default function Report() {
     }
   }, [registeredPincode]);
 
-  // Trigger AI Classification Pipeline
-  const runAiClassification = (presetKey = 'pothole') => {
+  // Trigger AI Classification Pipeline via Backend Service Layer
+  const runAiClassification = async (customImageUrl = null) => {
     setAiAnalyzing(true);
     setAiStepIndex(0);
     setAiResult(null);
 
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      currentStep += 1;
-      if (currentStep < AI_STEPS.length) {
-        setAiStepIndex(currentStep);
-      } else {
-        clearInterval(interval);
-        setAiAnalyzing(false);
+    const stepInterval = setInterval(() => {
+      setAiStepIndex((prev) => (prev < AI_STEPS.length - 1 ? prev + 1 : prev));
+    }, 280);
 
-        // Pick classification
-        const classification = MOCK_AI_PRESETS[presetKey] || MOCK_AI_PRESETS.pothole;
-        setAiResult(classification);
+    try {
+      const activeImage = customImageUrl || uploadedImageData?.cloudinary_url || uploadedImageData?.url || imagePreview || null;
+      const response = await ApiClient.classifyComplaint({
+        title: form.title,
+        description: form.description,
+        imageUrl: activeImage,
+      });
 
-        // Auto-fill form fields with AI suggestions if currently blank or user wants suggestions
-        setForm((f) => ({
-          ...f,
-          title: f.title || classification.title,
-          description: f.description || classification.description,
-          category: classification.categorySlug,
-          priority: classification.priority.toLowerCase(),
-          requirement: f.requirement || `Inspection and repair by ${classification.department}`,
-        }));
+      clearInterval(stepInterval);
+      setAiStepIndex(AI_STEPS.length - 1);
+      setAiResult(response);
 
-        toast.info(`AI analysis complete: ${classification.issue} (${classification.confidence} confidence)`);
-      }
-    }, 450);
+      // Auto-fill form fields with AI suggestions if currently blank or user wants suggestions
+      setForm((f) => ({
+        ...f,
+        title: f.title || response.issue || f.title,
+        category: response.categorySlug || f.category,
+        priority: (response.priority || f.priority || 'medium').toLowerCase(),
+        requirement: f.requirement || response.requirement,
+      }));
+
+      const confidencePct = response.confidence ? Math.round(response.confidence * 100) : 90;
+      toast.info(`AI analysis complete: ${response.issue || response.category} (${confidencePct}% confidence)`);
+    } catch (err) {
+      clearInterval(stepInterval);
+      console.warn('AI classification error:', err.message);
+    } finally {
+      setAiAnalyzing(false);
+    }
   };
 
   // ── Image Upload Handling (Real Cloudinary via Backend API) ────────────────

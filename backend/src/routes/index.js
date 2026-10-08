@@ -12,6 +12,7 @@ const commentRouter = require('./commentRoutes');
 const userRouter = require('./userRoutes');
 const municipalRouter = require('./municipalRoutes');
 const uploadRouter = require('./uploadRoutes');
+const aiRouter = require('./aiRoutes');
 
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
@@ -21,5 +22,6 @@ router.use('/comments', commentRouter);
 router.use('/users', userRouter);
 router.use('/municipal', municipalRouter);
 router.use('/uploads', uploadRouter);
+router.use('/ai', aiRouter);
 
 module.exports = router;

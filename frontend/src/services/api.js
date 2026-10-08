@@ -144,6 +144,15 @@ class ApiClient {
     });
     return res.data?.image || res.data;
   }
+
+  // AI endpoints
+  static async classifyComplaint(data) {
+    const res = await ApiClient.request('/ai/classify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.data;
+  }
 }
 
 export default ApiClient;
