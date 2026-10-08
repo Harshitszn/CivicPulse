@@ -11,6 +11,7 @@ import Button from '../../components/ui/Button';
 import { Textarea } from '../../components/ui/Input';
 import { useToast } from '../../context/ToastContext';
 import { usePincode } from '../../context/PincodeContext';
+import ApiClient from '../../services/api';
 
 const MOCK_COMPLAINT = {
   _id: '1',
@@ -52,14 +53,28 @@ export default function ComplaintDetail() {
   const { toast } = useToast();
   const { registeredPincode, isEligibleToVote, castVote, getComplaintVotes, getComplaintComments, addComment, allComplaints } = usePincode();
 
+  const [apiComplaint, setApiComplaint] = useState(null);
+
+  React.useEffect(() => {
+    const inStore = allComplaints?.find((item) => String(item._id) === String(id) || String(item.id) === String(id));
+    if (!inStore && id) {
+      ApiClient.getComplaintById(id)
+        .then((comp) => {
+          if (comp) setApiComplaint(comp);
+        })
+        .catch(() => {});
+    }
+  }, [id, allComplaints]);
+
   const activeComplaint = React.useMemo(() => {
     if (allComplaints) {
-      const found = allComplaints.find((item) => String(item._id) === String(id));
+      const found = allComplaints.find((item) => String(item._id) === String(id) || String(item.id) === String(id));
       if (found) return found;
     }
+    if (apiComplaint) return apiComplaint;
     if (location.state?.complaint) return location.state.complaint;
     return MOCK_COMPLAINT;
-  }, [allComplaints, id, location.state]);
+  }, [allComplaints, apiComplaint, id, location.state]);
 
   const isEligible = isEligibleToVote(activeComplaint.pincode);
   const { upvotes, downvotes, netScore, userVote } = getComplaintVotes(

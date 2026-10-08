@@ -7,11 +7,20 @@ const ApiError = require('../utils/ApiError');
 
 const storage = multer.memoryStorage();
 
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/jpg',
+  'image/gif',
+  'image/heic',
+]);
+
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/')) {
+  if (ALLOWED_MIME_TYPES.has(file.mimetype.toLowerCase()) || file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new ApiError(400, 'Only image files are allowed'), false);
+    cb(new ApiError(400, 'Invalid file type. Only JPEG, PNG, WebP, GIF images are accepted.'), false);
   }
 };
 

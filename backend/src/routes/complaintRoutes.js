@@ -12,12 +12,14 @@ const { authenticate, optionalAuthenticate, requireRole } = require('../middlewa
 const complaintValidation = [
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('description').trim().notEmpty().withMessage('Description is required'),
+  body('pincode').trim().notEmpty().withMessage('Pincode is required'),
 ];
 
 router.get('/', optionalAuthenticate, complaintController.listComplaints);
 router.get('/insights', complaintController.getInsights);
 router.get('/:id', optionalAuthenticate, complaintController.getComplaint);
 router.post('/', authenticate, upload.array('images', 5), validate(complaintValidation), complaintController.createComplaint);
-router.patch('/:id/status', authenticate, requireRole('official', 'admin'), complaintController.updateStatus);
+router.patch('/:id', authenticate, complaintController.updateComplaint);
+router.patch('/:id/status', authenticate, requireRole('official', 'staff', 'admin'), complaintController.updateStatus);
 
 module.exports = router;

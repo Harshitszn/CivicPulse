@@ -94,13 +94,40 @@ class ApiClient {
     localStorage.removeItem('civicpulse_user');
   }
 
-  // Profile endpoints
-  static async updateProfile(profileData) {
-    const res = await ApiClient.request('/users/profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
+  // Complaint endpoints
+  static async createComplaint(complaintData) {
+    const isFormData = complaintData instanceof FormData;
+    const res = await ApiClient.request('/complaints', {
+      method: 'POST',
+      body: isFormData ? complaintData : JSON.stringify(complaintData),
     });
-    return res.data;
+    return res.data?.complaint || res.data;
+  }
+
+  static async getComplaints(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const endpoint = `/complaints${qs ? `?${qs}` : ''}`;
+    const res = await ApiClient.request(endpoint);
+    return res.data?.complaints || res.data || [];
+  }
+
+  static async getComplaintById(id) {
+    const res = await ApiClient.request(`/complaints/${id}`);
+    return res.data?.complaint || res.data;
+  }
+
+  static async updateComplaint(id, updates) {
+    const res = await ApiClient.request(`/complaints/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+    return res.data?.complaint || res.data;
   }
 }
 

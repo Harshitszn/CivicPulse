@@ -9,6 +9,8 @@ import Input, { Textarea, Select } from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import { useToast } from '../../context/ToastContext';
 import { usePincode } from '../../context/PincodeContext';
+import { useAuth } from '../../context/AuthContext';
+import ApiClient from '../../services/api';
 
 const CATEGORIES = [
   { value: '', label: 'Select a category...' },
@@ -111,7 +113,9 @@ const AI_STEPS = [
 export default function Report() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { addNewComplaint, currentUser, registeredPincode } = usePincode();
+  const { addNewComplaint, refreshComplaints, currentUser: pincodeUser, registeredPincode } = usePincode();
+  const { currentUser: authUser } = useAuth();
+  const currentUser = authUser || pincodeUser;
 
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -126,13 +130,20 @@ export default function Report() {
     title: '',
     description: '',
     category: '',
-    pincode: '',
+    requirement: '',
+    pincode: registeredPincode || currentUser?.pincode || '110001',
     address: '',
     priority: 'medium',
     isAnonymous: false,
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (registeredPincode && (!form.pincode || form.pincode === '110001')) {
+      setForm((f) => ({ ...f, pincode: registeredPincode }));
+    }
+  }, [registeredPincode]);
 
   // Trigger AI Classification Pipeline
   const runAiClassification = (presetKey = 'pothole') => {
@@ -160,6 +171,7 @@ export default function Report() {
           description: f.description || classification.description,
           category: classification.categorySlug,
           priority: classification.priority.toLowerCase(),
+          requirement: f.requirement || `Inspection and repair by ${classification.department}`,
         }));
 
         toast.info(`AI analysis complete: ${classification.issue} (${classification.confidence} confidence)`);
@@ -246,47 +258,52 @@ export default function Report() {
       return;
     }
 
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    const complaintNum = Math.floor(10000 + Math.random() * 90000);
-    const complaintId = `CP-${complaintNum}`;
-    const selectedCategoryObj = CATEGORIES.find((c) => c.value === form.category);
-
-    const newComplaint = {
-      _id: complaintId,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      category: selectedCategoryObj?.label.split(' ')[2] || aiResult?.category || 'General',
-      categorySlug: form.category,
-      pincode: form.pincode.trim(),
-      ward: `Ward ${form.pincode.slice(-2)}`,
-      address: form.address.trim() || `Pincode ${form.pincode}`,
-      priority: form.priority || 'medium',
-      department: selectedCategoryObj?.dept || aiResult?.department || 'General Municipal Administration',
-      status: 'open',
-      upvotes: 1,
-      downvotes: 0,
-      commentCount: 0,
-      imageUrl: imagePreview || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80',
-      aiAnalysis: aiResult ? { ...aiResult } : null,
-      reportedBy: {
-        name: form.isAnonymous ? 'Anonymous Resident' : (currentUser?.name || 'Priya Sharma'),
-        avatar: form.isAnonymous ? null : (currentUser?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80'),
-        isAnonymous: form.isAnonymous,
-      },
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      addNewComplaint(newComplaint);
-    } catch (err) {
-      console.warn('Context update error', err);
+    const token = ApiClient.getToken();
+    if (!token) {
+      toast.error('Authentication required. Please log in to file an official civic complaint.');
+      navigate('/login', { state: { returnUrl: '/report' } });
+      return;
     }
 
-    setLoading(false);
-    toast.success(`Complaint #${complaintId} registered successfully!`);
-    navigate(`/complaint/${complaintId}`, { state: { complaint: newComplaint } });
+    setLoading(true);
+
+    try {
+      const selectedCategoryObj = CATEGORIES.find((c) => c.value === form.category);
+      const categoryLabel = selectedCategoryObj
+        ? selectedCategoryObj.label.replace(/^[^\w\s]+\s*/, '').trim()
+        : (aiResult?.category || 'General');
+
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        category: categoryLabel,
+        requirement: form.requirement?.trim() || null,
+        priority: (form.priority || 'medium').toLowerCase(),
+        pincode: form.pincode.trim(),
+        address: form.address?.trim() || null,
+        is_anonymous: Boolean(form.isAnonymous),
+        imageUrl: imagePreview || null,
+        assigned_department: selectedCategoryObj?.dept || aiResult?.department || 'General Municipal Administration',
+        estimated_resolution_time: aiResult?.estimatedResolution || '2–4 Days',
+      };
+
+      const createdComplaint = await ApiClient.createComplaint(payload);
+
+      // Return the created complaint, update state immediately, and trigger feed refresh
+      addNewComplaint(createdComplaint);
+      if (typeof refreshComplaints === 'function') {
+        refreshComplaints();
+      }
+
+      setLoading(false);
+      const complaintIdentifier = (createdComplaint.id || createdComplaint._id || '').slice(0, 8);
+      toast.success(`Complaint #${complaintIdentifier} registered successfully in the municipal database!`);
+      navigate(`/complaint/${createdComplaint.id || createdComplaint._id}`, { state: { complaint: createdComplaint } });
+    } catch (err) {
+      setLoading(false);
+      console.error('Failed to submit complaint:', err);
+      toast.error(err.message || 'Failed to submit complaint. Please check your network and credentials.');
+    }
   };
 
   const handleChange = (field) => (e) => {
@@ -539,6 +556,16 @@ export default function Report() {
             required
           />
 
+          {/* Specific Requirement / Resolution Action */}
+          <Input
+            label="Specific Requirement / Requested Remedy (Optional)"
+            placeholder="e.g. Urgent pipeline valve replacement, asphalt road patchwork, heavy debris clearing..."
+            value={form.requirement}
+            onChange={handleChange('requirement')}
+            id="report-requirement"
+            maxLength={255}
+          />
+
           {/* Location details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
@@ -582,7 +609,7 @@ export default function Report() {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-secondary-900">Public Identity</p>
-                  <p className="text-[10px] text-secondary-500">Post as Priya Sharma</p>
+                  <p className="text-[10px] text-secondary-500">Post as {currentUser?.full_name || currentUser?.name || 'Citizen Resident'}</p>
                 </div>
               </button>
 

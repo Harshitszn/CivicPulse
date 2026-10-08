@@ -11,21 +11,36 @@ class ComplaintService {
     title,
     description,
     category,
+    requirement,
     priority,
+    status = 'REPORTED',
     address,
     pincode,
     latitude,
     longitude,
+    is_anonymous = false,
     image_urls = [],
     user_id,
     assigned_department,
+    estimated_resolution_time,
   }) {
-    // If category or priority is not explicitly provided, run AI triage
+    if (!title || !title.trim()) {
+      throw ApiError.badRequest('Title is required');
+    }
+    if (!description || !description.trim()) {
+      throw ApiError.badRequest('Description is required');
+    }
+    if (!pincode || !pincode.trim()) {
+      throw ApiError.badRequest('Pincode is required');
+    }
+
+    // AI Classification & Triage
     let finalCategory = category;
     let finalPriority = priority;
     let finalDept = assigned_department;
-    let aiConfidence = 0.9;
-    let aiUrgency = 50;
+    let finalEstRes = estimated_resolution_time || '2–4 Days';
+    let aiConfidence = 0.92;
+    let aiUrgency = 60;
 
     if (!finalCategory || !finalPriority || !finalDept) {
       const aiTriage = await AiService.classifyComplaint(title, description);
@@ -37,20 +52,37 @@ class ComplaintService {
     }
 
     const complaint = await ComplaintModel.create({
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       category: finalCategory,
+      requirement: requirement ? requirement.trim() : null,
       priority: finalPriority,
-      address,
-      pincode,
-      latitude,
-      longitude,
+      status: status || 'REPORTED',
+      address: address ? address.trim() : null,
+      pincode: pincode.trim(),
+      latitude: latitude !== undefined && latitude !== null ? parseFloat(latitude) : null,
+      longitude: longitude !== undefined && longitude !== null ? parseFloat(longitude) : null,
+      is_anonymous: Boolean(is_anonymous),
       image_urls,
-      user_id,
+      user_id, // Authenticated user ID from JWT
       assigned_department: finalDept,
+      estimated_resolution_time: finalEstRes,
       ai_confidence: aiConfidence,
       ai_urgency_score: aiUrgency,
     });
+
+    // Record initial status history
+    try {
+      await db('complaint_status_history').insert({
+        complaint_id: complaint.id,
+        changed_by_user_id: user_id,
+        from_status: null,
+        to_status: status || 'REPORTED',
+        notes: 'Complaint submitted by citizen.',
+      });
+    } catch (err) {
+      console.warn('Could not record initial status history:', err.message);
+    }
 
     return complaint;
   }
@@ -70,26 +102,85 @@ class ComplaintService {
       complaints,
       pagination: {
         total,
-        limit: filters.limit || 20,
+        limit: filters.limit || 50,
         offset: filters.offset || 0,
       },
     };
   }
 
-  static async updateStatus(id, status, officialId) {
-    const complaint = await ComplaintModel.findById(id);
-    if (!complaint) {
+  static async updateComplaint(id, updates, userId, userRole) {
+    const existing = await ComplaintModel.findById(id);
+    if (!existing) {
       throw ApiError.notFound('Complaint not found');
     }
 
-    const validStatuses = ['pending', 'in_progress', 'resolved', 'rejected'];
-    if (!validStatuses.includes(status)) {
-      throw ApiError.badRequest(`Invalid status. Must be one of: ${validStatuses.join(', ')}`);
+    const isOwner = existing.user_id === userId || existing.created_by === userId;
+    const isStaffOrAdmin = userRole === 'official' || userRole === 'staff' || userRole === 'admin';
+
+    if (!isOwner && !isStaffOrAdmin) {
+      throw ApiError.forbidden('You do not have permission to update this complaint');
+    }
+
+    const allowedUpdates = {};
+    if (updates.title) allowedUpdates.title = updates.title.trim();
+    if (updates.description) allowedUpdates.description = updates.description.trim();
+    if (updates.category) allowedUpdates.category = updates.category;
+    if (updates.requirement !== undefined) allowedUpdates.requirement = updates.requirement;
+    if (updates.priority) allowedUpdates.priority = updates.priority;
+    if (updates.pincode) allowedUpdates.pincode = updates.pincode;
+    if (updates.address !== undefined) allowedUpdates.address = updates.address;
+    if (updates.latitude !== undefined) allowedUpdates.latitude = updates.latitude;
+    if (updates.longitude !== undefined) allowedUpdates.longitude = updates.longitude;
+    if (updates.is_anonymous !== undefined) allowedUpdates.is_anonymous = updates.is_anonymous;
+    if (updates.isAnonymous !== undefined) allowedUpdates.is_anonymous = updates.isAnonymous;
+    if (updates.estimated_resolution_time) allowedUpdates.estimated_resolution_time = updates.estimated_resolution_time;
+    if (updates.estimatedResolution) allowedUpdates.estimated_resolution_time = updates.estimatedResolution;
+
+    // Only staff/admin can change status and assigned department
+    if (updates.status && updates.status !== existing.status) {
+      if (!isStaffOrAdmin) {
+        throw ApiError.forbidden('Only municipal officials can change complaint status');
+      }
+      allowedUpdates.status = updates.status;
+      if (updates.status === 'resolved' || updates.status === 'RESOLVED') {
+        allowedUpdates.resolved_at = db.fn.now();
+      }
+
+      // Log status history
+      await db('complaint_status_history').insert({
+        complaint_id: id,
+        changed_by_user_id: userId,
+        from_status: existing.status,
+        to_status: updates.status,
+        notes: updates.notes || `Status changed to ${updates.status}`,
+      });
+    }
+
+    if (updates.assigned_department && isStaffOrAdmin) {
+      allowedUpdates.assigned_department = updates.assigned_department;
+    }
+
+    const updated = await ComplaintModel.update(id, allowedUpdates);
+    return updated;
+  }
+
+  static async updateStatus(id, status, officialId, notes) {
+    const existing = await ComplaintModel.findById(id);
+    if (!existing) {
+      throw ApiError.notFound('Complaint not found');
     }
 
     const updated = await ComplaintModel.update(id, {
       status,
-      resolved_at: status === 'resolved' ? db.fn.now() : null,
+      resolved_at: status === 'resolved' || status === 'RESOLVED' ? db.fn.now() : null,
+    });
+
+    await db('complaint_status_history').insert({
+      complaint_id: id,
+      changed_by_user_id: officialId,
+      from_status: existing.status,
+      to_status: status,
+      notes: notes || `Status updated to ${status}`,
     });
 
     return updated;
@@ -97,12 +188,12 @@ class ComplaintService {
 
   static async getInsights(pincode) {
     let query = db('complaints');
-    if (pincode) query = query.where({ pincode });
+    if (pincode && pincode !== 'all') query = query.where({ pincode });
 
     const totalCount = await query.clone().count('id as count').first();
-    const resolvedCount = await query.clone().where({ status: 'resolved' }).count('id as count').first();
-    const pendingCount = await query.clone().where({ status: 'pending' }).count('id as count').first();
-    const inProgressCount = await query.clone().where({ status: 'in_progress' }).count('id as count').first();
+    const resolvedCount = await query.clone().whereIn('status', ['resolved', 'RESOLVED', 'verified']).count('id as count').first();
+    const pendingCount = await query.clone().whereIn('status', ['pending', 'REPORTED', 'open']).count('id as count').first();
+    const inProgressCount = await query.clone().whereIn('status', ['in_progress', 'IN_PROGRESS', 'assigned']).count('id as count').first();
 
     const categoryBreakdown = await query
       .clone()

@@ -57,6 +57,14 @@ function errorHandler(err, req, res, next) {
     });
   }
 
+  // ── Multer upload errors ──────────────────────────────────────────────
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'File is too large. Maximum allowed size is 5MB.' });
+    }
+    return res.status(400).json({ success: false, message: err.message || 'File upload error.' });
+  }
+
   // ── JWT errors (caught before reaching here via middleware, but safety net) ──
   if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
     return res.status(401).json({ success: false, message: 'Invalid or expired token.' });

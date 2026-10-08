@@ -65,7 +65,7 @@ export default function MunicipalComplaintDetail() {
 
   // Find complaint from shared store
   const complaint = useMemo(() => {
-    const found = allComplaints.find((c) => String(c._id) === String(activeId));
+    const found = allComplaints.find((c) => String(c._id) === String(activeId) || String(c.id) === String(activeId));
     if (found) return found;
     return {
       _id: activeId,

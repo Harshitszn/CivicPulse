@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
+import ApiClient from '../services/api';
 
 const PincodeContext = createContext();
 
@@ -667,14 +668,47 @@ export function PincodeProvider({ children }) {
     }
   });
 
-  const addNewComplaint = (newComplaint) => {
-    setAllComplaints((prev) => [newComplaint, ...prev]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
+
+  const fetchComplaints = async () => {
     try {
-      const existing = JSON.parse(localStorage.getItem('civicpulse_user_complaints') || '[]');
-      localStorage.setItem('civicpulse_user_complaints', JSON.stringify([newComplaint, ...existing]));
+      setLoadingComplaints(true);
+      const apiComplaints = await ApiClient.getComplaints();
+      if (Array.isArray(apiComplaints) && apiComplaints.length > 0) {
+        const normalized = apiComplaints.map((c) => ({
+          ...c,
+          _id: c.id || c._id,
+          id: c.id || c._id,
+          categorySlug: c.categorySlug || c.category?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'other',
+        }));
+        setAllComplaints((prev) => {
+          const apiIds = new Set(normalized.map((c) => String(c.id)));
+          const remainingPrev = prev.filter((c) => !apiIds.has(String(c._id)) && !apiIds.has(String(c.id)));
+          return [...normalized, ...remainingPrev];
+        });
+      }
     } catch (err) {
-      console.warn('LocalStorage error', err);
+      console.warn('Could not fetch complaints from API:', err.message);
+    } finally {
+      setLoadingComplaints(false);
     }
+  };
+
+  useEffect(() => {
+    fetchComplaints();
+  }, []);
+
+  const addNewComplaint = (newComplaint) => {
+    const formatted = {
+      ...newComplaint,
+      _id: newComplaint.id || newComplaint._id,
+      id: newComplaint.id || newComplaint._id,
+      categorySlug: newComplaint.categorySlug || newComplaint.category?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'other',
+    };
+    setAllComplaints((prev) => [
+      formatted,
+      ...prev.filter((c) => String(c._id) !== String(formatted._id) && String(c.id) !== String(formatted.id)),
+    ]);
   };
 
   const updateComplaintDetails = (complaintId, updates) => {
@@ -964,6 +998,8 @@ export function PincodeProvider({ children }) {
         loginAsUser,
         logoutUser,
         allComplaints,
+        loadingComplaints,
+        refreshComplaints: fetchComplaints,
         addNewComplaint,
         updateComplaintStatus,
         updateComplaintDetails,
