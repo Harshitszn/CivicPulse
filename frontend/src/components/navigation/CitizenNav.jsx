@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, LogIn, LogOut, BarChart2 } from 'lucide-react';
+import { Home, Rss, PlusCircle, FileText, User, MapPin, Edit2, LogIn, LogOut, BarChart2, ChevronDown, Check } from 'lucide-react';
 import { usePincode } from '../../context/PincodeContext';
 import { useAuth } from '../../context/AuthContext';
 import Modal from '../ui/Modal';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
+
+const POPULAR_ZONES = [
+  { code: 'all', label: 'All Zones (Citywide)' },
+  { code: '400064', label: '400064 - Malad West' },
+  { code: '400067', label: '400067 - Kandivali West' },
+  { code: '400076', label: '400076 - Powai' },
+  { code: '400054', label: '400054 - Santacruz West' },
+  { code: '110001', label: '110001 - Connaught Place' },
+  { code: '560001', label: '560001 - Bangalore Central' },
+];
 
 const NAV_ITEMS = [
   { to: '/',             label: 'Home',           desktopLabel: 'Home',           icon: Home,       id: 'nav-home'     },
@@ -18,21 +28,26 @@ const NAV_ITEMS = [
 
 function CitizenNav() {
   const navigate = useNavigate();
-  const { registeredPincode, setRegisteredPincode } = usePincode();
+  const { registeredPincode, setRegisteredPincode, globalPincode, setGlobalPincode } = usePincode();
   const { currentUser, isAuthenticated, logout } = useAuth();
-  const [pincodeModalOpen, setPincodeModalOpen] = useState(false);
-  const [tempPincode, setTempPincode] = useState(registeredPincode);
-  const [error, setError] = useState('');
+  const [zoneModalOpen, setZoneModalOpen] = useState(false);
+  const [customPincode, setCustomPincode] = useState('');
+  const [customError, setCustomError] = useState('');
 
-  const handleSavePincode = (e) => {
+  const handleSelectZone = (code) => {
+    setGlobalPincode(code);
+    setZoneModalOpen(false);
+  };
+
+  const handleApplyCustomPincode = (e) => {
     e.preventDefault();
-    if (!/^\d{6}$/.test(tempPincode.trim())) {
-      setError('Please enter a valid 6-digit postal code');
+    if (!/^\d{6}$/.test(customPincode.trim())) {
+      setCustomError('Please enter a valid 6-digit postal code');
       return;
     }
-    setError('');
-    setRegisteredPincode(tempPincode.trim());
-    setPincodeModalOpen(false);
+    setCustomError('');
+    setGlobalPincode(customPincode.trim());
+    setZoneModalOpen(false);
   };
 
   const displayName = currentUser?.full_name || currentUser?.name || 'Citizen';
@@ -49,18 +64,16 @@ function CitizenNav() {
             <span className="text-base font-bold text-secondary-900">CivicPulse</span>
           </NavLink>
 
-          {/* Registered Pincode Badge */}
+          {/* Global Browsing Pincode Zone Selector Badge */}
           <button
-            onClick={() => {
-              setTempPincode(registeredPincode);
-              setPincodeModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-50 hover:bg-primary-100 border border-primary-200 text-xs font-bold text-primary-700 transition-colors cursor-pointer"
-            title="Click to update your voting pincode"
+            onClick={() => setZoneModalOpen(true)}
+            id="global-zone-selector-btn"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 hover:bg-primary-100 border border-primary-200 text-xs font-bold text-primary-700 transition-colors cursor-pointer shadow-xs"
+            title="Filter Feed, Search, and Civic Insights by pincode zone"
           >
             <MapPin size={13} className="text-primary-600" />
-            <span>Zone: {registeredPincode}</span>
-            <Edit2 size={11} className="text-primary-500 ml-0.5" />
+            <span>Zone: {globalPincode === 'all' ? 'All Wards' : globalPincode}</span>
+            <ChevronDown size={12} className="text-primary-500 ml-0.5" />
           </button>
         </div>
 
@@ -133,14 +146,12 @@ function CitizenNav() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              setTempPincode(registeredPincode);
-              setPincodeModalOpen(true);
-            }}
+            onClick={() => setZoneModalOpen(true)}
+            id="global-zone-selector-mobile-btn"
             className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-50 border border-primary-200 text-xs font-bold text-primary-700"
           >
             <MapPin size={12} className="text-primary-600" />
-            <span>PIN: {registeredPincode}</span>
+            <span>Zone: {globalPincode === 'all' ? 'All' : globalPincode}</span>
           </button>
           {!isAuthenticated && (
             <Button
@@ -182,41 +193,77 @@ function CitizenNav() {
         ))}
       </nav>
 
-      {/* ── Change Registered Pincode Modal ───────────────────────────── */}
+      {/* ── Global Pincode Zone Filter Modal ───────────────────────────── */}
       <Modal
-        isOpen={pincodeModalOpen}
-        onClose={() => setPincodeModalOpen(false)}
-        title="Update Registered Pincode"
+        isOpen={zoneModalOpen}
+        onClose={() => setZoneModalOpen(false)}
+        title="Select Civic Zone / Pincode"
         footer={
-          <>
-            <Button variant="ghost" onClick={() => setPincodeModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleSavePincode}>
-              Save Pincode
-            </Button>
-          </>
+          <Button variant="ghost" onClick={() => setZoneModalOpen(false)}>
+            Close
+          </Button>
         }
       >
-        <form onSubmit={handleSavePincode} className="space-y-4">
+        <div className="space-y-4">
           <p className="text-xs text-secondary-500 leading-relaxed">
-            Your registered pincode determines which civic issues you are eligible to vote on. Voting is restricted to verified residents of that specific postal zone.
+            Choose a postal zone to filter the <strong>FeedLoop</strong>, <strong>Complaint Search</strong>, and <strong>Civic Insights</strong> across real municipal database records.
           </p>
-          <Input
-            label="Your Resident Pincode (6 digits)"
-            placeholder="e.g. 110001"
-            value={tempPincode}
-            onChange={(e) => {
-              setTempPincode(e.target.value);
-              setError('');
-            }}
-            error={error}
-            maxLength={6}
-            inputMode="numeric"
-            id="pincode-modal-input"
-            autoFocus
-          />
-        </form>
+
+          <div>
+            <label className="text-xs font-bold text-secondary-700 block mb-2">Available Civic Zones</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {POPULAR_ZONES.map((zone) => {
+                const isActive = globalPincode === zone.code;
+                return (
+                  <button
+                    key={zone.code}
+                    type="button"
+                    onClick={() => handleSelectZone(zone.code)}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold text-left transition-all ${
+                      isActive
+                        ? 'bg-primary-50 border-primary-500 text-primary-900 ring-2 ring-primary-200'
+                        : 'bg-white border-secondary-200 text-secondary-700 hover:bg-secondary-50 hover:border-secondary-300'
+                    }`}
+                  >
+                    <span className="truncate">{zone.label}</span>
+                    {isActive && <Check size={14} className="text-primary-600 flex-shrink-0 ml-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleApplyCustomPincode} className="pt-2 border-t border-secondary-100">
+            <label className="text-xs font-bold text-secondary-700 block mb-1.5">Or Enter Custom 6-Digit PIN</label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="e.g. 400064"
+                  value={customPincode}
+                  onChange={(e) => {
+                    setCustomPincode(e.target.value);
+                    setCustomError('');
+                  }}
+                  error={customError}
+                  maxLength={6}
+                  inputMode="numeric"
+                  id="custom-zone-input"
+                />
+              </div>
+              <Button variant="primary" type="submit" className="text-xs">
+                Apply Zone
+              </Button>
+            </div>
+          </form>
+
+          <div className="p-3 bg-secondary-50 rounded-xl border border-secondary-200 text-[11px] text-secondary-600">
+            <span>Your registered voting pincode is: </span>
+            <strong className="text-primary-700 font-bold">{registeredPincode}</strong>
+            <span className="block text-[10px] text-secondary-400 mt-0.5">
+              (Voting eligibility on complaints requires matching the complaint's pincode)
+            </span>
+          </div>
+        </div>
       </Modal>
     </>
   );

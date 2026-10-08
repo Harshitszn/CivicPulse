@@ -30,8 +30,8 @@ class ComplaintModel {
       pincode: row.pincode,
       address: row.address || null,
       area_id: row.area_id || null,
-      created_by: row.user_id,
-      user_id: row.user_id,
+      created_by: row.is_anonymous ? null : row.user_id,
+      user_id: row.is_anonymous ? null : row.user_id,
       department_id: row.department_id || null,
       department: row.assigned_department || 'General Municipal Administration',
       assigned_department: row.assigned_department || 'General Municipal Administration',
@@ -55,7 +55,7 @@ class ComplaintModel {
       image_urls: imageUrls,
       imageUrl: imageUrls[0] || null,
       reportedBy: {
-        id: row.user_id,
+        id: row.is_anonymous ? null : row.user_id,
         name: row.is_anonymous ? 'Anonymous Resident' : (row.author_name || 'Citizen Resident'),
         avatar: row.is_anonymous ? null : (row.author_avatar || null),
         isAnonymous: Boolean(row.is_anonymous),
@@ -75,7 +75,6 @@ class ComplaintModel {
       .select(
         'complaints.*',
         'users.full_name as author_name',
-        'users.email as author_email',
         'users.avatar_url as author_avatar',
         db.raw('ST_X(complaints.location::geometry) as longitude'),
         db.raw('ST_Y(complaints.location::geometry) as latitude')
@@ -320,7 +319,6 @@ class ComplaintModel {
       .select(
         'complaints.*',
         'users.full_name as author_name',
-        'users.email as author_email',
         'users.avatar_url as author_avatar',
         db.raw('ST_X(complaints.location::geometry) as longitude'),
         db.raw('ST_Y(complaints.location::geometry) as latitude')

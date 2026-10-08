@@ -761,8 +761,25 @@ export function PincodeProvider({ children }) {
     authLogout();
   };
 
-  // Active Pincode selected for browsing feed complaints ('all' or specific 6-digit pin)
-  const [selectedBrowsingPincode, setSelectedBrowsingPincode] = useState('all');
+  // Active Global Browsing Pincode ('all' or specific 6-digit pin)
+  const [globalPincode, setGlobalPincodeState] = useState(() => {
+    try {
+      return localStorage.getItem('civicpulse_global_pincode') || 'all';
+    } catch {
+      return 'all';
+    }
+  });
+
+  const setGlobalPincode = (pincode) => {
+    const clean = pincode ? String(pincode).trim() : 'all';
+    setGlobalPincodeState(clean);
+    try {
+      localStorage.setItem('civicpulse_global_pincode', clean);
+    } catch (e) {}
+  };
+
+  const selectedBrowsingPincode = globalPincode;
+  const setSelectedBrowsingPincode = setGlobalPincode;
 
   // Track user active votes: { [complaintId]: 'upvote' | 'downvote' }
   const [userVotes, setUserVotes] = useState(() => {
@@ -1009,6 +1026,8 @@ export function PincodeProvider({ children }) {
         updateComplaintDetails,
         registeredPincode,
         setRegisteredPincode,
+        globalPincode,
+        setGlobalPincode,
         selectedBrowsingPincode,
         setSelectedBrowsingPincode,
         userVotes,

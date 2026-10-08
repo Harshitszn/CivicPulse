@@ -43,8 +43,8 @@ const getDashboard = async (req, res, next) => {
         SELECT AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) AS avg_hours
         FROM complaints
         WHERE resolved_at IS NOT NULL
-        ${pincode && pincode !== 'all' ? "AND pincode = '" + pincode.replace(/'/g, '') + "'" : ''}
-      `),
+        ${pincode && pincode !== 'all' ? 'AND pincode = :pincode' : ''}
+      `, { pincode }),
     ]);
 
     // Status breakdown
@@ -369,11 +369,11 @@ const getAnalytics = async (req, res, next) => {
           COUNT(id) AS count,
           SUM(CASE WHEN UPPER(status) = 'RESOLVED' THEN 1 ELSE 0 END) AS resolved
         FROM complaints
-        ${pincode && pincode !== 'all' ? "WHERE pincode = '" + pincode.replace(/'/g, '') + "'" : ''}
+        ${pincode && pincode !== 'all' ? 'WHERE pincode = :pincode' : ''}
         GROUP BY DATE_TRUNC('month', created_at)
         ORDER BY month_date DESC
         LIMIT 6
-      `),
+      `, { pincode }),
       // Avg resolution time
       db.raw(`
         SELECT 
@@ -382,8 +382,8 @@ const getAnalytics = async (req, res, next) => {
           MAX(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600) AS max_hours
         FROM complaints
         WHERE resolved_at IS NOT NULL
-        ${pincode && pincode !== 'all' ? "AND pincode = '" + pincode.replace(/'/g, '') + "'" : ''}
-      `),
+        ${pincode && pincode !== 'all' ? 'AND pincode = :pincode' : ''}
+      `, { pincode }),
     ]);
 
     // Format category chart

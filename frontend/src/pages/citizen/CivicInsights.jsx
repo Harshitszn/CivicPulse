@@ -38,6 +38,7 @@ import {
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import ApiClient from '../../services/api';
+import { usePincode } from '../../context/PincodeContext';
 
 // ── Locality & Demo Pincodes Metadata ─────────────────────────────────────────
 
@@ -879,10 +880,9 @@ function ServicesSection({ servicesData, loading, error, onRetry, localityName, 
 
 export default function CivicInsights() {
   const location = useLocation();
+  const { globalPincode, setGlobalPincode } = usePincode();
 
-  const [selectedPincode, setSelectedPincode] = useState(() => {
-    return localStorage.getItem('civic_insights_pincode') || '400064';
-  });
+  const selectedPincode = globalPincode || '400064';
 
   const [customInput, setCustomInput] = useState('');
   const [inputError, setInputError] = useState('');
@@ -930,8 +930,7 @@ export default function CivicInsights() {
 
   const handlePincodeChange = (newPincode) => {
     if (newPincode === selectedPincode) return;
-    setSelectedPincode(newPincode);
-    localStorage.setItem('civic_insights_pincode', newPincode);
+    setGlobalPincode(newPincode);
     setInputError('');
     setCustomInput('');
   };

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ThumbsUp, ThumbsDown, MessageCircle, MapPin, Clock, Flame,
   Clock3, TrendingUp, AlertTriangle, Building2, Share2, Bookmark, CheckCircle2,
-  Lock, Filter, Eye, Sparkles, RefreshCw,
+  Lock, Filter, Eye, Sparkles, RefreshCw, Search, X,
 } from 'lucide-react';
 import { StatusBadge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import StatusTimeline from '../../components/ui/StatusTimeline';
@@ -264,10 +264,12 @@ function VisualPostCard({ complaint, onVoteUpdated }) {
 
 // ── Main Feed Screen ─────────────────────────────────────────────────────────
 export default function Feed() {
-  const { registeredPincode, selectedBrowsingPincode, setSelectedBrowsingPincode } = usePincode();
+  const { registeredPincode, globalPincode, setGlobalPincode } = usePincode();
 
   const [activeSort, setActiveSort] = useState('top');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -280,6 +282,14 @@ export default function Feed() {
     hasNextPage: false,
     hasPrevPage: false,
   });
+
+  // Debounce search query input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Distinct browsing pincode options
   const defaultPincodes = ['400064', '400076', '400067', '400054', '110001', '560001'];
@@ -296,12 +306,16 @@ export default function Feed() {
         sort: activeSort,
       };
 
-      if (selectedBrowsingPincode && selectedBrowsingPincode !== 'all') {
-        params.pincode = selectedBrowsingPincode;
+      if (globalPincode && globalPincode !== 'all') {
+        params.pincode = globalPincode;
       }
 
       if (activeFilter && activeFilter !== 'all') {
         params.category = activeFilter;
+      }
+
+      if (debouncedSearch && debouncedSearch.trim()) {
+        params.search = debouncedSearch.trim();
       }
 
       const res = await ApiClient.getComplaints(params);
@@ -319,7 +333,7 @@ export default function Feed() {
 
   useEffect(() => {
     fetchComplaints(1);
-  }, [selectedBrowsingPincode, activeFilter, activeSort]);
+  }, [globalPincode, activeFilter, activeSort, debouncedSearch]);
 
   const handleVoteUpdated = (complaintId, voteResult) => {
     setComplaints((prev) =>
@@ -366,59 +380,84 @@ export default function Feed() {
         </Link>
       </div>
 
-      {/* Pincode Browsing Filter Strip */}
-      <div className="bg-surface border border-secondary-200 rounded-xl p-3 mb-4 shadow-card">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-secondary-800 flex items-center gap-1.5">
-            <Filter size={13} className="text-primary-600" />
-            Browse by Pincode Zone
-          </span>
-          {selectedBrowsingPincode !== 'all' && (
+      {/* Search & Pincode Filter Card */}
+      <div className="bg-surface border border-secondary-200 rounded-xl p-3 mb-4 shadow-card space-y-3">
+        {/* Search Bar with real backend database query */}
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400" />
+          <input
+            type="text"
+            id="feed-search-input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={`Search civic complaints in ${globalPincode === 'all' ? 'all zones' : 'PIN ' + globalPincode}...`}
+            className="w-full bg-secondary-50 border border-secondary-200 focus:border-primary-500 focus:bg-white rounded-xl py-2 pl-9 pr-9 text-xs font-medium text-secondary-900 placeholder:text-secondary-400 focus:outline-none transition-all"
+          />
+          {searchQuery && (
             <button
-              onClick={() => setSelectedBrowsingPincode('all')}
-              className="text-[11px] text-primary-600 hover:underline font-bold"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary-400 hover:text-secondary-600 p-0.5 rounded-full"
+              title="Clear search"
             >
-              Show All Pincodes
+              <X size={14} />
             </button>
           )}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          <button
-            onClick={() => setSelectedBrowsingPincode('all')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${
-              selectedBrowsingPincode === 'all'
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'bg-secondary-50 text-secondary-600 border-secondary-200 hover:bg-white'
-            }`}
-          >
-            All Pincodes
-          </button>
-          <button
-            onClick={() => setSelectedBrowsingPincode(registeredPincode)}
-            className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border flex items-center gap-1 ${
-              selectedBrowsingPincode === registeredPincode
-                ? 'bg-primary-600 text-white border-primary-600'
-                : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
-            }`}
-          >
-            📍 My Area ({registeredPincode})
-          </button>
 
-          {availablePincodes
-            .filter((p) => p !== registeredPincode)
-            .map((pin) => (
+        {/* Pincode Browsing Filter Strip */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-bold text-secondary-800 flex items-center gap-1.5">
+              <Filter size={13} className="text-primary-600" />
+              Filter by Postal Zone
+            </span>
+            {globalPincode !== 'all' && (
               <button
-                key={pin}
-                onClick={() => setSelectedBrowsingPincode(pin)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${
-                  selectedBrowsingPincode === pin
-                    ? 'bg-primary-600 text-white border-primary-600'
-                    : 'bg-white text-secondary-600 border-secondary-200 hover:border-primary-300'
-                }`}
+                onClick={() => setGlobalPincode('all')}
+                className="text-[11px] text-primary-600 hover:underline font-bold"
               >
-                PIN: {pin}
+                Reset to All Zones
               </button>
-            ))}
+            )}
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setGlobalPincode('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border ${
+                globalPincode === 'all'
+                  ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
+                  : 'bg-secondary-50 text-secondary-600 border-secondary-200 hover:bg-white'
+              }`}
+            >
+              All Pincodes
+            </button>
+            <button
+              onClick={() => setGlobalPincode(registeredPincode)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-colors border flex items-center gap-1 ${
+                globalPincode === registeredPincode
+                  ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
+                  : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100'
+              }`}
+            >
+              📍 My Area ({registeredPincode})
+            </button>
+
+            {availablePincodes
+              .filter((p) => p !== registeredPincode)
+              .map((pin) => (
+                <button
+                  key={pin}
+                  onClick={() => setGlobalPincode(pin)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${
+                    globalPincode === pin
+                      ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
+                      : 'bg-white text-secondary-600 border-secondary-200 hover:border-primary-300'
+                  }`}
+                >
+                  PIN: {pin}
+                </button>
+              ))}
+          </div>
         </div>
       </div>
 
