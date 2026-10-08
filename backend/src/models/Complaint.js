@@ -142,8 +142,28 @@ class ComplaintModel {
       downvotes_count: 0,
     };
 
-    if (latitude !== undefined && longitude !== undefined && latitude !== null && longitude !== null) {
-      insertData.location = db.raw(`ST_SetSRID(ST_MakePoint(?, ?), 4326)`, [longitude, latitude]);
+    let finalLng = longitude !== undefined && longitude !== null ? parseFloat(longitude) : null;
+    let finalLat = latitude !== undefined && latitude !== null ? parseFloat(latitude) : null;
+
+    if ((finalLng === null || isNaN(finalLng) || finalLat === null || isNaN(finalLat)) && pincode) {
+      const PINCODE_CENTROIDS = {
+        '400064': { lat: 19.1866, lng: 72.8485 },
+        '400067': { lat: 19.2062, lng: 72.8407 },
+        '400076': { lat: 19.1176, lng: 72.9060 },
+        '400054': { lat: 19.0833, lng: 72.8368 },
+        '110001': { lat: 28.6315, lng: 77.2197 },
+        '560001': { lat: 12.9716, lng: 77.5946 },
+      };
+      const centroid = PINCODE_CENTROIDS[String(pincode).trim()] || { lat: 19.1000, lng: 72.8500 };
+      // Small random micro-jitter within 150m
+      const jitterLat = (Math.random() - 0.5) * 0.003;
+      const jitterLng = (Math.random() - 0.5) * 0.003;
+      finalLat = parseFloat((centroid.lat + jitterLat).toFixed(6));
+      finalLng = parseFloat((centroid.lng + jitterLng).toFixed(6));
+    }
+
+    if (finalLat !== null && finalLng !== null) {
+      insertData.location = db.raw(`ST_SetSRID(ST_MakePoint(?, ?), 4326)`, [finalLng, finalLat]);
     }
 
     const [inserted] = await db(TABLE).insert(insertData).returning('*');
@@ -259,8 +279,20 @@ class ComplaintModel {
 
     if (nearLat && nearLng) {
       query.whereRaw(
-        'ST_DWithin(complaints.location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+        'ST_DWithin(complaints.location::geography, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
         [nearLng, nearLat, radiusMeters]
+      );
+    }
+
+    if (filters.bbox) {
+      const parts = String(filters.bbox).split(',').map((n) => parseFloat(n.trim()));
+      if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+        query.whereRaw('complaints.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)', parts);
+      }
+    } else if (filters.minLat !== undefined && filters.minLng !== undefined && filters.maxLat !== undefined && filters.maxLng !== undefined) {
+      query.whereRaw(
+        'complaints.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)',
+        [parseFloat(filters.minLng), parseFloat(filters.minLat), parseFloat(filters.maxLng), parseFloat(filters.maxLat)]
       );
     }
 
@@ -347,6 +379,202 @@ class ComplaintModel {
     ComplaintModel.applyFilters(query, filters);
     const result = await query.count('complaints.id as count').first();
     return parseInt(result?.count || 0, 10);
+  }
+
+  /**
+   * 1 & 2. Find complaints near a coordinate within a radius (SRID 4326 PostGIS)
+   * Uses PostGIS ST_DWithin and index-assisted ST_Distance calculation
+   */
+  static async findNearby({
+    lat,
+    lng,
+    radiusMeters = 5000,
+    category,
+    status,
+    priority,
+    pincode,
+    limit = 50,
+    offset = 0,
+  } = {}) {
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+    const radNum = Math.min(100000, Math.max(10, parseInt(radiusMeters, 10) || 5000));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const offsetNum = Math.max(0, parseInt(offset, 10) || 0);
+
+    let query = db(TABLE)
+      .leftJoin('users', 'complaints.user_id', '=', 'users.id')
+      .whereNotNull('complaints.location')
+      .whereRaw(
+        'ST_DWithin(complaints.location::geography, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+        [lngNum, latNum, radNum]
+      )
+      .select(
+        'complaints.*',
+        'users.full_name as author_name',
+        'users.avatar_url as author_avatar',
+        db.raw('ST_X(complaints.location::geometry) as longitude'),
+        db.raw('ST_Y(complaints.location::geometry) as latitude'),
+        db.raw(
+          'ROUND(ST_Distance(complaints.location::geography, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography)::numeric, 1) as distance_meters',
+          [lngNum, latNum]
+        )
+      );
+
+    ComplaintModel.applyFilters(query, { category, status, priority, pincode });
+
+    // Order by distance ascending using index-backed PostGIS geography distance
+    query.orderByRaw(
+      'complaints.location::geography <-> ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography ASC',
+      [lngNum, latNum]
+    );
+
+    const rows = await query.limit(limitNum).offset(offsetNum);
+
+    // Total count in radius
+    let countQuery = db(TABLE)
+      .whereNotNull('complaints.location')
+      .whereRaw(
+        'ST_DWithin(complaints.location::geography, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+        [lngNum, latNum, radNum]
+      );
+    ComplaintModel.applyFilters(countQuery, { category, status, priority, pincode });
+    const countRes = await countQuery.count('complaints.id as count').first();
+    const total = parseInt(countRes?.count || 0, 10);
+
+    const complaints = rows.map((r) => {
+      const formatted = ComplaintModel.formatRow(r);
+      formatted.distance_meters = parseFloat(r.distance_meters || 0);
+      formatted.distanceMeters = formatted.distance_meters;
+      formatted.distanceKm = parseFloat((formatted.distance_meters / 1000).toFixed(2));
+      return formatted;
+    });
+
+    return {
+      complaints,
+      center: { latitude: latNum, longitude: lngNum },
+      radiusMeters: radNum,
+      radiusKm: parseFloat((radNum / 1000).toFixed(1)),
+      total,
+      limit: limitNum,
+      offset: offsetNum,
+    };
+  }
+
+  /**
+   * 3. Retrieve complaints within a geographic area / bounding envelope (SRID 4326 PostGIS)
+   */
+  static async findInBoundingBox({
+    minLat,
+    minLng,
+    maxLat,
+    maxLng,
+    category,
+    status,
+    priority,
+    pincode,
+    limit = 100,
+    offset = 0,
+  } = {}) {
+    const minLatNum = parseFloat(minLat);
+    const minLngNum = parseFloat(minLng);
+    const maxLatNum = parseFloat(maxLat);
+    const maxLngNum = parseFloat(maxLng);
+    const limitNum = Math.min(500, Math.max(1, parseInt(limit, 10) || 100));
+    const offsetNum = Math.max(0, parseInt(offset, 10) || 0);
+
+    let query = db(TABLE)
+      .leftJoin('users', 'complaints.user_id', '=', 'users.id')
+      .whereNotNull('complaints.location')
+      .whereRaw(
+        'complaints.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)',
+        [minLngNum, minLatNum, maxLngNum, maxLatNum]
+      )
+      .select(
+        'complaints.*',
+        'users.full_name as author_name',
+        'users.avatar_url as author_avatar',
+        db.raw('ST_X(complaints.location::geometry) as longitude'),
+        db.raw('ST_Y(complaints.location::geometry) as latitude')
+      );
+
+    ComplaintModel.applyFilters(query, { category, status, priority, pincode });
+    query.orderBy('complaints.created_at', 'desc');
+
+    const rows = await query.limit(limitNum).offset(offsetNum);
+
+    let countQuery = db(TABLE)
+      .whereNotNull('complaints.location')
+      .whereRaw(
+        'complaints.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)',
+        [minLngNum, minLatNum, maxLngNum, maxLatNum]
+      );
+    ComplaintModel.applyFilters(countQuery, { category, status, priority, pincode });
+    const countRes = await countQuery.count('complaints.id as count').first();
+    const total = parseInt(countRes?.count || 0, 10);
+
+    return {
+      complaints: rows.map(ComplaintModel.formatRow),
+      bbox: { minLat: minLatNum, minLng: minLngNum, maxLat: maxLatNum, maxLng: maxLngNum },
+      total,
+      limit: limitNum,
+      offset: offsetNum,
+    };
+  }
+
+  /**
+   * 4. Return coordinates for municipal map visualization (SRID 4326 PostGIS)
+   */
+  static async getMapCoordinates({ pincode, category, status, priority, bbox, limit = 500 } = {}) {
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit, 10) || 500));
+
+    let query = db(TABLE)
+      .whereNotNull('complaints.location')
+      .select(
+        'complaints.id',
+        'complaints.title',
+        'complaints.category',
+        'complaints.priority',
+        'complaints.status',
+        'complaints.pincode',
+        'complaints.address',
+        'complaints.upvotes_count',
+        'complaints.downvotes_count',
+        'complaints.created_at',
+        db.raw('ST_X(complaints.location::geometry) as longitude'),
+        db.raw('ST_Y(complaints.location::geometry) as latitude'),
+        db.raw('ST_AsGeoJSON(complaints.location) as geojson')
+      );
+
+    ComplaintModel.applyFilters(query, { pincode, category, status, priority });
+
+    if (bbox) {
+      const parts = String(bbox).split(',').map((n) => parseFloat(n.trim()));
+      if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+        // [minLng, minLat, maxLng, maxLat]
+        query.whereRaw('complaints.location && ST_MakeEnvelope(?, ?, ?, ?, 4326)', parts);
+      }
+    }
+
+    query.orderBy('complaints.created_at', 'desc').limit(limitNum);
+    const rows = await query;
+
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      priority: r.priority,
+      status: r.status,
+      pincode: r.pincode,
+      address: r.address,
+      latitude: parseFloat(r.latitude),
+      longitude: parseFloat(r.longitude),
+      coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
+      geojson: r.geojson ? JSON.parse(r.geojson) : null,
+      upvotes: r.upvotes_count || 0,
+      downvotes: r.downvotes_count || 0,
+      createdAt: r.created_at,
+    }));
   }
 }
 

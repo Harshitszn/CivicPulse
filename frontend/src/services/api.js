@@ -151,6 +151,43 @@ class ApiClient {
     return res.data;
   }
 
+  // PostGIS Spatial API Methods
+  static async getNearbyComplaints(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/complaints/nearby${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
+
+  static async getAreaComplaints(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/complaints/area${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
+
+  static async getMapCoordinates(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/complaints/map${qs ? `?${qs}` : ''}`);
+    return res.data?.complaints || [];
+  }
+
   // Upload endpoints
   static async uploadComplaintImage(file, complaintId = null) {
     const formData = new FormData();

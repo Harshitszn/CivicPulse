@@ -17,6 +17,9 @@ const complaintValidation = [
 ];
 
 router.get('/', optionalAuthenticate, complaintController.listComplaints);
+router.get('/nearby', optionalAuthenticate, complaintController.getNearbyComplaints);
+router.get('/area', optionalAuthenticate, complaintController.getAreaComplaints);
+router.get('/map', optionalAuthenticate, complaintController.getMapCoordinates);
 router.get('/insights', complaintController.getInsights);
 router.get('/mine', authenticate, complaintController.getMyComplaints);
 router.get('/:id', optionalAuthenticate, complaintController.getComplaint);

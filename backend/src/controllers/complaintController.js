@@ -244,6 +244,107 @@ const getInsights = async (req, res, next) => {
   }
 };
 
+const getNearbyComplaints = async (req, res, next) => {
+  try {
+    const { lat, lng, radius = 5000, category, status, priority, pincode, limit = 50, offset = 0 } = req.query;
+
+    if (lat === undefined || lng === undefined) {
+      throw ApiError.badRequest('Latitude (lat) and Longitude (lng) query parameters are required.');
+    }
+
+    const latNum = parseFloat(lat);
+    const lngNum = parseFloat(lng);
+
+    if (isNaN(latNum) || latNum < -90 || latNum > 90) {
+      throw ApiError.badRequest('Latitude must be a valid number between -90 and 90.');
+    }
+    if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
+      throw ApiError.badRequest('Longitude must be a valid number between -180 and 180.');
+    }
+
+    const radNum = Math.min(100000, Math.max(10, parseFloat(radius) || 5000));
+
+    const result = await ComplaintService.getNearbyComplaints(
+      {
+        lat: latNum,
+        lng: lngNum,
+        radiusMeters: radNum,
+        category,
+        status,
+        priority,
+        pincode,
+        limit: parseInt(limit, 10) || 50,
+        offset: parseInt(offset, 10) || 0,
+      },
+      req.user?.id
+    );
+
+    return ApiResponse.ok(res, result, 'Nearby complaints retrieved via PostGIS spatial query');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getAreaComplaints = async (req, res, next) => {
+  try {
+    const { minLat, minLng, maxLat, maxLng, bbox, category, status, priority, pincode, limit = 100, offset = 0 } = req.query;
+
+    let bMinLat = parseFloat(minLat);
+    let bMinLng = parseFloat(minLng);
+    let bMaxLat = parseFloat(maxLat);
+    let bMaxLng = parseFloat(maxLng);
+
+    if (bbox) {
+      const parts = String(bbox).split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
+        [bMinLng, bMinLat, bMaxLng, bMaxLat] = parts;
+      }
+    }
+
+    if (isNaN(bMinLat) || isNaN(bMinLng) || isNaN(bMaxLat) || isNaN(bMaxLng)) {
+      throw ApiError.badRequest('Bounding box parameters required: minLat, minLng, maxLat, maxLng or bbox=minLng,minLat,maxLng,maxLat.');
+    }
+
+    const result = await ComplaintService.getAreaComplaints(
+      {
+        minLat: bMinLat,
+        minLng: bMinLng,
+        maxLat: bMaxLat,
+        maxLng: bMaxLng,
+        category,
+        status,
+        priority,
+        pincode,
+        limit: parseInt(limit, 10) || 100,
+        offset: parseInt(offset, 10) || 0,
+      },
+      req.user?.id
+    );
+
+    return ApiResponse.ok(res, result, 'Geographic area complaints retrieved via PostGIS envelope query');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getMapCoordinates = async (req, res, next) => {
+  try {
+    const { pincode, category, status, priority, bbox, limit = 500 } = req.query;
+    const complaints = await ComplaintService.getMapCoordinates({
+      pincode,
+      category,
+      status,
+      priority,
+      bbox,
+      limit: parseInt(limit, 10) || 500,
+    });
+
+    return ApiResponse.ok(res, { complaints, total: complaints.length }, 'Coordinates retrieved for municipal map visualization');
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createComplaint,
   getComplaint,
@@ -254,4 +355,7 @@ module.exports = {
   updateComplaint,
   updateStatus,
   getInsights,
+  getNearbyComplaints,
+  getAreaComplaints,
+  getMapCoordinates,
 };

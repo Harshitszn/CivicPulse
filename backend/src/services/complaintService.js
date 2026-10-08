@@ -273,6 +273,36 @@ class ComplaintService {
       categoryBreakdown,
     };
   }
+
+  static async getNearbyComplaints(options, currentUserId = null) {
+    const result = await ComplaintModel.findNearby(options);
+    if (currentUserId && result.complaints.length > 0) {
+      const ids = result.complaints.map((c) => c.id || c._id);
+      const voteMap = await VoteModel.findUserVotesForComplaints(currentUserId, ids);
+      for (const c of result.complaints) {
+        c.current_user_vote = voteMap[c.id || c._id] || null;
+        c.currentUserVote = c.current_user_vote;
+      }
+    }
+    return result;
+  }
+
+  static async getAreaComplaints(options, currentUserId = null) {
+    const result = await ComplaintModel.findInBoundingBox(options);
+    if (currentUserId && result.complaints.length > 0) {
+      const ids = result.complaints.map((c) => c.id || c._id);
+      const voteMap = await VoteModel.findUserVotesForComplaints(currentUserId, ids);
+      for (const c of result.complaints) {
+        c.current_user_vote = voteMap[c.id || c._id] || null;
+        c.currentUserVote = c.current_user_vote;
+      }
+    }
+    return result;
+  }
+
+  static async getMapCoordinates(options) {
+    return ComplaintModel.getMapCoordinates(options);
+  }
 }
 
 module.exports = ComplaintService;

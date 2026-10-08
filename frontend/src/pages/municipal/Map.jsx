@@ -1,29 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  MapPin, Layers, Filter, Eye, ArrowRight, RefreshCw, Flame, CheckCircle2, ThumbsUp, Shield
+  MapPin, Layers, Filter, Eye, ArrowRight, RefreshCw, Flame, CheckCircle2, ThumbsUp, Shield, Loader2, Compass
 } from 'lucide-react';
 import { StatusBadge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { usePincode } from '../../context/PincodeContext';
-
-// Standard mock coordinates grid for prototype map canvas
-const MOCK_COORDINATES = [
-  { x: 34, y: 38 },
-  { x: 64, y: 52 },
-  { x: 44, y: 68 },
-  { x: 22, y: 58 },
-  { x: 74, y: 28 },
-  { x: 82, y: 64 },
-  { x: 28, y: 72 },
-  { x: 50, y: 34 },
-  { x: 58, y: 80 },
-  { x: 38, y: 24 },
-];
+import ApiClient from '../../services/api';
 
 export default function MapView() {
-  const { allComplaints, getComplaintVotes } = usePincode();
-
   // ── Filters State (4 Required Filters) ───────────────────────────────────────
   const [pincodeFilter, setPincodeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -31,39 +15,79 @@ export default function MapView() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
+  const [dbComplaints, setDbComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // ── Fetch real PostGIS SRID 4326 coordinates from backend ─────────────────────
+  const fetchMapData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = {};
+      if (pincodeFilter !== 'all') params.pincode = pincodeFilter;
+      if (categoryFilter !== 'all') params.category = categoryFilter;
+      if (priorityFilter !== 'all') params.priority = priorityFilter;
+      if (statusFilter !== 'all') params.status = statusFilter;
+
+      const items = await ApiClient.getMapCoordinates(params);
+      setDbComplaints(items);
+    } catch (err) {
+      console.error('Failed to load PostGIS map coordinates:', err);
+      setError(err.message || 'Failed to retrieve spatial coordinates');
+    } finally {
+      setLoading(false);
+    }
+  }, [pincodeFilter, categoryFilter, priorityFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchMapData();
+  }, [fetchMapData]);
+
   // ── Unique Filter Options ───────────────────────────────────────────────────
-  const uniquePincodes = useMemo(() => {
-    return Array.from(new Set(allComplaints.map((c) => c.pincode).filter(Boolean))).sort();
-  }, [allComplaints]);
+  const uniquePincodes = ['110001', '400054', '400064', '400067', '400076', '560001'];
 
-  const uniqueCategories = useMemo(() => {
-    return Array.from(new Set(allComplaints.map((c) => c.category || c.categorySlug).filter(Boolean))).sort();
-  }, [allComplaints]);
+  const uniqueCategories = [
+    'Road Damage', 'Garbage Collection', 'Water Supply', 'Drainage', 'Street Lighting', 'Public Infrastructure'
+  ];
 
-  // ── Complaints mapped with mock coordinates & filtered ──────────────────────
+  // ── Compute dynamic geographic bounding projection to map canvas (x: 10–90%, y: 10–90%) ──
   const mappedComplaints = useMemo(() => {
-    return allComplaints.map((c, index) => {
-      const coord = MOCK_COORDINATES[index % MOCK_COORDINATES.length];
+    if (!dbComplaints || dbComplaints.length === 0) return [];
+
+    const lats = dbComplaints.map(c => c.latitude).filter(n => typeof n === 'number' && !isNaN(n));
+    const lngs = dbComplaints.map(c => c.longitude).filter(n => typeof n === 'number' && !isNaN(n));
+
+    if (lats.length === 0 || lngs.length === 0) return [];
+
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    const latSpan = maxLat - minLat || 0.01;
+    const lngSpan = maxLng - minLng || 0.01;
+
+    return dbComplaints.map((c, index) => {
+      // Longitude -> X (left to right, 10% to 90%)
+      const xPct = 10 + (((c.longitude - minLng) / latSpan) * 80);
+      // Latitude -> Y (north to south is top to bottom, inverted, 10% to 90%)
+      const yPct = 10 + (((maxLat - c.latitude) / lngSpan) * 80);
+
+      // Clamp between 8% and 92% to remain well within canvas bounds
+      const clampedX = Math.max(8, Math.min(92, isNaN(xPct) ? 50 : xPct));
+      const clampedY = Math.max(8, Math.min(92, isNaN(yPct) ? 50 : yPct));
+
       return {
         ...c,
-        x: coord.x,
-        y: coord.y,
+        _id: c.id,
+        x: clampedX,
+        y: clampedY,
       };
     });
-  }, [allComplaints]);
+  }, [dbComplaints]);
 
-  const filteredComplaints = useMemo(() => {
-    return mappedComplaints.filter((c) => {
-      const matchPin = pincodeFilter === 'all' || c.pincode === pincodeFilter;
-      const matchCat =
-        categoryFilter === 'all' ||
-        (c.category && c.category.toLowerCase() === categoryFilter.toLowerCase()) ||
-        (c.categorySlug && c.categorySlug.toLowerCase() === categoryFilter.toLowerCase());
-      const matchPriority = priorityFilter === 'all' || c.priority === priorityFilter;
-      const matchStatus = statusFilter === 'all' || c.status === statusFilter;
-      return matchPin && matchCat && matchPriority && matchStatus;
-    });
-  }, [mappedComplaints, pincodeFilter, categoryFilter, priorityFilter, statusFilter]);
+  const filteredComplaints = mappedComplaints;
 
   const resetFilters = () => {
     setPincodeFilter('all');
@@ -85,17 +109,20 @@ export default function MapView() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-extrabold text-secondary-900 tracking-tight">Geospatial Complaint Map</h1>
-            <span className="px-2.5 py-0.5 bg-primary-50 text-primary-700 font-extrabold text-xs rounded-full border border-primary-200">
-              PROTOTYPE MAP DEMO
+            <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-full border border-emerald-200">
+              POSTGIS SRID 4326 LIVE
             </span>
           </div>
           <p className="text-xs text-secondary-500 mt-1">
-            Visual geospatial distribution of municipal grievances across pincode zones • Interactive map pins
+            Real PostGIS spatial distribution of municipal grievances across postal zones • Interactive GPS pins
           </p>
         </div>
 
-        <div className="text-xs font-bold text-secondary-600 bg-secondary-50 px-3 py-1.5 rounded-lg border border-secondary-200">
-          Mapped: {filteredComplaints.length} of {allComplaints.length} Grievances
+        <div className="flex items-center gap-2">
+          {loading && <Loader2 size={14} className="animate-spin text-primary-600" />}
+          <div className="text-xs font-bold text-secondary-600 bg-secondary-50 px-3 py-1.5 rounded-lg border border-secondary-200">
+            Mapped: {filteredComplaints.length} Spatial Grievances
+          </div>
         </div>
       </div>
 
@@ -303,8 +330,15 @@ export default function MapView() {
 
                 <div className="flex justify-between items-center text-[11px] pt-1 text-secondary-600 border-t border-secondary-100">
                   <span className="font-mono font-bold">📍 PIN: {selectedComplaint.pincode}</span>
+                  <span className="font-mono text-[10px] text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-200">
+                    GPS: {selectedComplaint.latitude?.toFixed(4)}, {selectedComplaint.longitude?.toFixed(4)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-secondary-600">
+                  <span className="text-secondary-500">Community Score:</span>
                   <span className="font-extrabold text-primary-700">
-                    Score: {getComplaintVotes(selectedComplaint._id, selectedComplaint.upvotes, selectedComplaint.downvotes).netScore}
+                    {((selectedComplaint.upvotes || 0) - (selectedComplaint.downvotes || 0)) > 0 ? `+${(selectedComplaint.upvotes || 0) - (selectedComplaint.downvotes || 0)}` : ((selectedComplaint.upvotes || 0) - (selectedComplaint.downvotes || 0))}
                   </span>
                 </div>
 
@@ -318,24 +352,24 @@ export default function MapView() {
           </div>
         </div>
 
-        {/* ── Sidebar Column (Show 6 Required Attributes per Complaint) ──────── */}
+        {/* ── Sidebar Column (Show Spatial Attributes per Complaint) ──────── */}
         <div className="space-y-4">
           <div className="bg-white border border-secondary-200 rounded-xl p-5 shadow-card space-y-3">
             <h3 className="text-xs font-extrabold text-secondary-900 uppercase tracking-wider border-b border-secondary-100 pb-2">
               Mapped Complaint Directory ({filteredComplaints.length})
             </h3>
             <p className="text-xs text-secondary-500">
-              Click any grievance card to highlight pin coordinates on the prototype map:
+              Click any grievance card to highlight PostGIS pin coordinates on the map:
             </p>
 
             <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
               {filteredComplaints.length === 0 ? (
                 <p className="text-xs text-secondary-400 italic text-center py-4">
-                  No grievances match map filters.
+                  {loading ? 'Querying PostGIS coordinates...' : 'No grievances match spatial filters.'}
                 </p>
               ) : (
                 filteredComplaints.map((c) => {
-                  const votes = getComplaintVotes(c._id, c.upvotes, c.downvotes);
+                  const netScore = (c.upvotes || 0) - (c.downvotes || 0);
                   const isSelected = selectedComplaint?._id === c._id;
 
                   return (
@@ -349,7 +383,7 @@ export default function MapView() {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-extrabold text-primary-700">#{c._id}</span>
+                        <span className="font-extrabold text-primary-700">#{c._id.slice(0, 8)}</span>
                         <div className="flex items-center gap-1">
                           <PriorityBadge priority={c.priority} />
                           <StatusBadge status={c.status} />
@@ -365,8 +399,12 @@ export default function MapView() {
                           <MapPin size={12} className="text-primary-600" /> {c.pincode}
                         </span>
 
+                        <span className="font-mono text-[10px] text-secondary-500">
+                          {c.latitude?.toFixed(3)}, {c.longitude?.toFixed(3)}
+                        </span>
+
                         <span className="font-extrabold text-primary-700">
-                          Net Score: {votes.netScore > 0 ? `+${votes.netScore}` : votes.netScore}
+                          Score: {netScore > 0 ? `+${netScore}` : netScore}
                         </span>
                       </div>
                     </div>
