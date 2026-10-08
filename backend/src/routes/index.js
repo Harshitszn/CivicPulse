@@ -13,6 +13,7 @@ const userRouter = require('./userRoutes');
 const municipalRouter = require('./municipalRoutes');
 const uploadRouter = require('./uploadRoutes');
 const aiRouter = require('./aiRoutes');
+const insightsRouter = require('./insightsRoutes');
 
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
@@ -24,5 +25,6 @@ router.use('/municipal', municipalRouter);
 router.use('/admin', municipalRouter);
 router.use('/uploads', uploadRouter);
 router.use('/ai', aiRouter);
+router.use('/insights', insightsRouter);
 
 module.exports = router;

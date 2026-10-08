@@ -290,6 +290,43 @@ class ApiClient {
     const res = await ApiClient.request(`/admin/analytics${qs ? `?${qs}` : ''}`);
     return res.data;
   }
+
+  // Civic Insights Public APIs
+  static async getInsightsOverview(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/insights/overview${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
+
+  static async getCivicRecord(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/insights/record${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
+
+  static async getCivicServices(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/insights/services${qs ? `?${qs}` : ''}`);
+    return res.data;
+  }
 }
 
 export default ApiClient;
