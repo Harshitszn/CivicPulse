@@ -216,25 +216,28 @@ class AnalyticsService {
     // - SLA speed weight: 25 points max (faster is better)
     // - Active handling weight: 15 points max (% moved out of initial reported stage)
     // - Citizen trust weight: 15 points max (low disputes / high confirmation)
-    const resWeight = (resolutionRate / 100) * 45;
-    const slaWeight = avgDays > 0
-      ? Math.max(5, Math.min(25, 25 - Math.max(0, avgDays - 2) * 1.5))
-      : 18;
+    const resWeight = total > 0 ? (resolutionRate / 100) * 45 : 0;
+    const slaWeight = total > 0 && avgDays > 0
+      ? Math.max(0, Math.min(25, 25 - Math.max(0, avgDays - 2) * 1.5))
+      : 0;
     const activeHandlingWeight = total > 0
       ? Math.max(0, Math.min(15, ((total - unassigned) / total) * 15))
-      : 10;
+      : 0;
     const trustWeight = total > 0
-      ? Math.max(2, Math.min(15, 15 - ((flaggedCount / total) * 30)))
-      : 12;
+      ? Math.max(0, Math.min(15, 15 - ((flaggedCount / total) * 30)))
+      : 0;
 
-    const rawScore = Math.round(resWeight + slaWeight + activeHandlingWeight + trustWeight);
-    const civicScore = Math.max(42, Math.min(97, rawScore || 72));
+    const civicScore = total > 0
+      ? Math.max(0, Math.min(100, Math.round(resWeight + slaWeight + activeHandlingWeight + trustWeight)))
+      : 0;
 
-    let scoreLabel = 'Moderate Performance';
-    if (civicScore >= 80) scoreLabel = 'High Civic Efficiency';
-    else if (civicScore >= 65) scoreLabel = 'Stable Municipal Performance';
-    else if (civicScore >= 50) scoreLabel = 'Moderate Civic Responsiveness';
-    else scoreLabel = 'Requires Administrative Intervention';
+    let scoreLabel = 'No records yet';
+    if (total > 0) {
+      if (civicScore >= 80) scoreLabel = 'High Civic Efficiency';
+      else if (civicScore >= 65) scoreLabel = 'Stable Municipal Performance';
+      else if (civicScore >= 50) scoreLabel = 'Moderate Civic Responsiveness';
+      else scoreLabel = 'Requires Administrative Intervention';
+    }
 
     return {
       pincode: pincode && pincode !== 'all' ? pincode : 'All Pincodes',
@@ -259,7 +262,7 @@ class AnalyticsService {
       civicPulseScore: {
         score: civicScore,
         label: scoreLabel,
-        delta: '+4.2% vs previous cycle',
+        delta: null,
         components: {
           resolutionRateComponent: Math.round(resWeight),
           slaSpeedComponent: Math.round(slaWeight),
@@ -406,8 +409,12 @@ class AnalyticsService {
 
       // Service score calculation:
       // Combines resolution rate + speed score
-      const speedScore = avgDays > 0 ? Math.max(10, Math.min(30, 30 - avgDays * 1.5)) : 20;
-      const serviceScore = Math.min(98, Math.max(45, Math.round((resolutionRate * 0.7) + speedScore)));
+      const speedScore = complaintCount > 0 && avgDays > 0
+        ? Math.max(0, Math.min(30, 30 - avgDays * 1.5))
+        : 0;
+      const serviceScore = complaintCount > 0
+        ? Math.max(0, Math.min(100, Math.round((resolutionRate * 0.7) + speedScore)))
+        : 0;
 
       return {
         key: cfg.key,
@@ -433,6 +440,25 @@ class AnalyticsService {
       services,
       totalTrackedGrievances: services.reduce((acc, s) => acc + s.complaintCount, 0),
     };
+  }
+
+  static async getAreas() {
+    const rows = await db('areas')
+      .select('pincode', 'area_name', 'ward_number', 'zone_name', 'city', 'state', 'municipality_name')
+      .orderBy('city', 'asc')
+      .orderBy('pincode', 'asc');
+
+    return [
+      { code: 'all', name: 'All Zones', ward: 'Combined municipal dataset', city: 'All cities' },
+      ...rows.map((r) => ({
+        code: r.pincode,
+        name: r.area_name,
+        ward: r.ward_number || r.zone_name,
+        city: r.city,
+        state: r.state,
+        municipality: r.municipality_name,
+      })),
+    ];
   }
 }
 

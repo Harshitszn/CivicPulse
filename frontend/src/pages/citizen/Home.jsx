@@ -1,31 +1,85 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Rss, PlusCircle, MapPin, TrendingUp, Shield, CheckCircle2 } from 'lucide-react';
+import { Rss, PlusCircle, MapPin, TrendingUp, CheckCircle2 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import ApiClient from '../../services/api';
 
-const STATS = [
-  { label: 'Issues Reported', value: '2,847', color: 'text-primary-600' },
-  { label: 'Resolved', value: '2,134', color: 'text-success' },
-  { label: 'In Progress', value: '421', color: 'text-warning' },
-  { label: 'Cities Active', value: '18', color: 'text-secondary-600' },
-];
-
-const RECENT_CATEGORIES = [
-  { name: 'Roads & Potholes', count: 342, emoji: '🛣️' },
-  { name: 'Water Supply', count: 218, emoji: '💧' },
-  { name: 'Streetlights', count: 195, emoji: '💡' },
-  { name: 'Sanitation', count: 184, emoji: '🗑️' },
-  { name: 'Parks & Spaces', count: 127, emoji: '🌳' },
-  { name: 'Electricity', count: 103, emoji: '⚡' },
-];
+const EMOJI_MAP = {
+  road: '🛣️',
+  pothole: '🛣️',
+  water: '💧',
+  lighting: '💡',
+  streetlight: '💡',
+  sanitation: '🗑️',
+  garbage: '🗑️',
+  drainage: '🌊',
+  sewage: '🌊',
+  electricity: '⚡',
+  park: '🌳',
+};
 
 export default function Home() {
+  const [statsData, setStatsData] = useState({
+    total: 0,
+    resolved: 0,
+    inProgress: 0,
+    zones: 6,
+  });
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const [overview, areas] = await Promise.all([
+          ApiClient.getInsightsOverview(),
+          ApiClient.getAreas().catch(() => []),
+        ]);
+        if (!cancelled && overview) {
+          setStatsData({
+            total: overview.totalComplaints || 0,
+            resolved: overview.resolved || 0,
+            inProgress: overview.inProgress || 0,
+            zones: Array.isArray(areas) && areas.length > 0 ? areas.length : 6,
+          });
+
+          const cats = overview.topCommunityPriorities?.categories || [];
+          const mapped = cats.map((c) => {
+            const lower = (c.category || '').toLowerCase();
+            const foundKey = Object.keys(EMOJI_MAP).find((k) => lower.includes(k));
+            return {
+              name: c.category,
+              count: c.total,
+              emoji: foundKey ? EMOJI_MAP[foundKey] : '📋',
+            };
+          });
+          setCategories(mapped);
+        }
+      } catch (err) {
+        console.warn('Could not load dynamic home statistics:', err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const stats = [
+    { label: 'Issues Reported', value: loading ? '...' : statsData.total.toLocaleString('en-IN'), color: 'text-primary-600' },
+    { label: 'Resolved', value: loading ? '...' : statsData.resolved.toLocaleString('en-IN'), color: 'text-success' },
+    { label: 'In Progress', value: loading ? '...' : statsData.inProgress.toLocaleString('en-IN'), color: 'text-warning' },
+    { label: 'Active Zones', value: loading ? '...' : statsData.zones.toString(), color: 'text-secondary-600' },
+  ];
+
   return (
     <div className="animate-fade-in">
       {/* Hero */}
       <section className="text-center py-10 px-2">
-
         <h1 className="text-3xl font-bold text-secondary-900 mb-3 leading-tight">
           Your city, your voice.
           <br />
@@ -48,9 +102,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Dynamic Database Stats */}
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <Card key={s.label} variant="flat" className="text-center py-4">
             <p className={`text-2xl sm:text-3xl font-black ${s.color}`}>{s.value}</p>
             <p className="text-xs text-secondary-400 mt-0.5">{s.label}</p>
@@ -81,26 +135,30 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Categories */}
+      {/* Database Categories */}
       <section>
         <h2 className="text-xs font-extrabold text-secondary-500 uppercase tracking-wider mb-3">Popular categories</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-          {RECENT_CATEGORIES.map((cat) => (
-            <Link
-              key={cat.name}
-              to={`/feed?category=${cat.name.toLowerCase().split(' ')[0]}`}
-              className="flex items-center gap-2.5 p-3 bg-surface rounded-xl border border-secondary-200
-                         hover:border-primary-300 hover:bg-primary-50 transition-all duration-fast no-underline group"
-            >
-              <span className="text-xl">{cat.emoji}</span>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-secondary-700 truncate group-hover:text-primary-700">
-                  {cat.name}
-                </p>
-                <p className="text-[10px] text-secondary-400">{cat.count} reports</p>
-              </div>
-            </Link>
-          ))}
+          {loading && categories.length === 0 ? (
+            <div className="col-span-full py-6 text-center text-xs text-secondary-400">Loading civic categories...</div>
+          ) : (
+            categories.map((cat) => (
+              <Link
+                key={cat.name}
+                to={`/feed?category=${encodeURIComponent(cat.name.toLowerCase())}`}
+                className="flex items-center gap-2.5 p-3 bg-surface rounded-xl border border-secondary-200
+                           hover:border-primary-300 hover:bg-primary-50 transition-all duration-fast no-underline group"
+              >
+                <span className="text-xl">{cat.emoji}</span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-secondary-700 truncate group-hover:text-primary-700">
+                    {cat.name}
+                  </p>
+                  <p className="text-[10px] text-secondary-400">{cat.count} reports</p>
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       </section>
     </div>

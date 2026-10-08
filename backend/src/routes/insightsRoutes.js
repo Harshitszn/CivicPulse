@@ -15,6 +15,9 @@ router.get('/record', ic.getCivicRecord);
 // Services tab: Roads, Garbage, Water, Drainage, Street Lighting dynamic calculations
 router.get('/services', ic.getServices);
 
+// Registered municipal areas / pincodes from the database
+router.get('/areas', ic.getAreas);
+
 // Root insights endpoint: returns all three or overview
 router.get('/', ic.getAllInsights);
 

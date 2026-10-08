@@ -469,6 +469,52 @@ const getDashboardStats = async (req, res, next) => {
   return getDashboard(req, res, next);
 };
 
+const getCitizens = async (req, res, next) => {
+  try {
+    const { search } = req.query;
+    let query = db('users')
+      .leftJoin('areas', 'users.pincode', '=', 'areas.pincode')
+      .where('users.role', 'citizen')
+      .select(
+        'users.id',
+        'users.full_name',
+        'users.email',
+        'users.pincode',
+        'users.created_at',
+        'areas.ward_number',
+        db.raw(`(SELECT COUNT(*) FROM complaints WHERE complaints.user_id = users.id) as total`),
+        db.raw(`(SELECT COUNT(*) FROM complaints WHERE complaints.user_id = users.id AND UPPER(complaints.status) = 'RESOLVED') as resolved`)
+      )
+      .orderBy('users.created_at', 'desc');
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      query = query.where((b) => {
+        b.whereILike('users.full_name', term)
+          .orWhereILike('users.email', term)
+          .orWhereILike('users.pincode', term);
+      });
+    }
+
+    const rows = await query;
+    const citizens = rows.map((r) => ({
+      id: r.id,
+      _id: r.id,
+      name: r.full_name,
+      email: r.email,
+      pincode: r.pincode,
+      ward: r.ward_number || null,
+      total: parseInt(r.total, 10) || 0,
+      resolved: parseInt(r.resolved, 10) || 0,
+      joinedAt: r.created_at,
+    }));
+
+    return ApiResponse.ok(res, { citizens, total: citizens.length }, 'Citizens retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getWards = async (req, res, next) => {
   try {
     const WardModel = require('../models/Ward');
@@ -486,5 +532,6 @@ module.exports = {
   getAdminComplaint,
   updateAdminComplaintStatus,
   getAnalytics,
+  getCitizens,
   getWards,
 };

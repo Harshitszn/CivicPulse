@@ -33,18 +33,18 @@ class ComplaintModel {
       created_by: row.is_anonymous ? null : row.user_id,
       user_id: row.is_anonymous ? null : row.user_id,
       department_id: row.department_id || null,
-      department: row.assigned_department || 'General Municipal Administration',
-      assigned_department: row.assigned_department || 'General Municipal Administration',
+      department: row.assigned_department || null,
+      assigned_department: row.assigned_department || null,
       assigned_staff_id: row.assigned_staff_id || null,
-      ward: row.pincode ? `Ward ${row.pincode.slice(-2)}` : 'Ward 1',
+      ward: row.ward_number || row.ward || null,
       categorySlug: row.category ? row.category.toLowerCase().replace(/[^a-z0-9]/g, '') : 'other',
-      commentCount: 0,
+      commentCount: parseInt(row.comment_count || 0, 10),
       latitude: row.latitude !== undefined && row.latitude !== null ? parseFloat(row.latitude) : null,
       longitude: row.longitude !== undefined && row.longitude !== null ? parseFloat(row.longitude) : null,
       is_anonymous: Boolean(row.is_anonymous),
       isAnonymous: Boolean(row.is_anonymous),
-      estimated_resolution_time: row.estimated_resolution_time || '2–4 Days',
-      estimatedResolution: row.estimated_resolution_time || '2–4 Days',
+      estimated_resolution_time: row.estimated_resolution_time || null,
+      estimatedResolution: row.estimated_resolution_time || null,
       ai_confidence: row.ai_confidence ? parseFloat(row.ai_confidence) : null,
       ai_urgency_score: row.ai_urgency_score || null,
       upvotes: row.upvotes_count || 0,
@@ -71,13 +71,16 @@ class ComplaintModel {
   static async findById(id) {
     const row = await db(TABLE)
       .leftJoin('users', 'complaints.user_id', '=', 'users.id')
+      .leftJoin('areas', 'complaints.area_id', '=', 'areas.id')
       .where('complaints.id', id)
       .select(
         'complaints.*',
         'users.full_name as author_name',
         'users.avatar_url as author_avatar',
+        'areas.ward_number',
         db.raw('ST_X(complaints.location::geometry) as longitude'),
-        db.raw('ST_Y(complaints.location::geometry) as latitude')
+        db.raw('ST_Y(complaints.location::geometry) as latitude'),
+        db.raw('(SELECT COUNT(*) FROM comments WHERE comments.complaint_id = complaints.id) as comment_count')
       )
       .first();
 
@@ -135,7 +138,7 @@ class ComplaintModel {
       image_urls: JSON.stringify(image_urls),
       user_id,
       assigned_department,
-      estimated_resolution_time: estimated_resolution_time || '2–4 Days',
+      estimated_resolution_time: estimated_resolution_time || null,
       ai_confidence,
       ai_urgency_score,
       upvotes_count: 0,
@@ -145,24 +148,7 @@ class ComplaintModel {
     let finalLng = longitude !== undefined && longitude !== null ? parseFloat(longitude) : null;
     let finalLat = latitude !== undefined && latitude !== null ? parseFloat(latitude) : null;
 
-    if ((finalLng === null || isNaN(finalLng) || finalLat === null || isNaN(finalLat)) && pincode) {
-      const PINCODE_CENTROIDS = {
-        '400064': { lat: 19.1866, lng: 72.8485 },
-        '400067': { lat: 19.2062, lng: 72.8407 },
-        '400076': { lat: 19.1176, lng: 72.9060 },
-        '400054': { lat: 19.0833, lng: 72.8368 },
-        '110001': { lat: 28.6315, lng: 77.2197 },
-        '560001': { lat: 12.9716, lng: 77.5946 },
-      };
-      const centroid = PINCODE_CENTROIDS[String(pincode).trim()] || { lat: 19.1000, lng: 72.8500 };
-      // Small random micro-jitter within 150m
-      const jitterLat = (Math.random() - 0.5) * 0.003;
-      const jitterLng = (Math.random() - 0.5) * 0.003;
-      finalLat = parseFloat((centroid.lat + jitterLat).toFixed(6));
-      finalLng = parseFloat((centroid.lng + jitterLng).toFixed(6));
-    }
-
-    if (finalLat !== null && finalLng !== null) {
+    if (finalLat !== null && !isNaN(finalLat) && finalLng !== null && !isNaN(finalLng)) {
       insertData.location = db.raw(`ST_SetSRID(ST_MakePoint(?, ?), 4326)`, [finalLng, finalLat]);
     }
 
@@ -320,7 +306,7 @@ class ComplaintModel {
         END ASC, complaints.created_at DESC`
       );
     } else if (s === 'discussed' || s === 'comments') {
-      query.orderBy('complaints.created_at', 'desc');
+      query.orderByRaw('(SELECT COUNT(*) FROM comments WHERE comments.complaint_id = complaints.id) DESC, complaints.created_at DESC');
     } else {
       const validCols = new Set(['title', 'category', 'status', 'priority', 'pincode', 'created_at', 'updated_at', 'upvotes_count']);
       const safeCol = validCols.has(s) ? s : 'created_at';
@@ -348,12 +334,15 @@ class ComplaintModel {
   } = {}) {
     let query = db(TABLE)
       .leftJoin('users', 'complaints.user_id', '=', 'users.id')
+      .leftJoin('areas', 'complaints.area_id', '=', 'areas.id')
       .select(
         'complaints.*',
         'users.full_name as author_name',
         'users.avatar_url as author_avatar',
+        'areas.ward_number',
         db.raw('ST_X(complaints.location::geometry) as longitude'),
-        db.raw('ST_Y(complaints.location::geometry) as latitude')
+        db.raw('ST_Y(complaints.location::geometry) as latitude'),
+        db.raw('(SELECT COUNT(*) FROM comments WHERE comments.complaint_id = complaints.id) as comment_count')
       );
 
     ComplaintModel.applyFilters(query, {

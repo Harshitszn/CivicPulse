@@ -328,6 +328,18 @@ class ApiClient {
     return res.data;
   }
 
+  static async getAdminCitizens(params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, val);
+      }
+    });
+    const qs = query.toString();
+    const res = await ApiClient.request(`/admin/citizens${qs ? `?${qs}` : ''}`);
+    return res.data?.citizens || [];
+  }
+
   // Civic Insights Public APIs
   static async getInsightsOverview(params = {}) {
     const query = new URLSearchParams();

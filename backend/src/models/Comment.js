@@ -19,13 +19,14 @@ class CommentModel {
       .orderBy('comments.created_at', 'asc');
   }
 
-  static async create({ user_id, complaint_id, content, is_official = false }) {
+  static async create({ user_id, complaint_id, content, is_official = false, is_anonymous = false }) {
     const [comment] = await db(TABLE)
       .insert({
         user_id,
         complaint_id,
         content,
         is_official,
+        is_anonymous,
       })
       .returning('*');
     return comment;

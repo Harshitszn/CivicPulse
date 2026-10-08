@@ -7,13 +7,14 @@ import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import { StatusBadge } from '../../components/ui/Badge';
 import { useAuth } from '../../context/AuthContext';
-import { usePincode } from '../../context/PincodeContext';
+import ApiClient from '../../services/api';
 
 export default function Profile() {
   const navigate = useNavigate();
   const { currentUser, isAuthenticated, logout, updateProfile } = useAuth();
-  const { allComplaints } = usePincode();
 
+  const [myComplaints, setMyComplaints] = useState([]);
+  const [loadingComplaints, setLoadingComplaints] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -32,6 +33,28 @@ export default function Profile() {
     }
   }, [currentUser]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (isAuthenticated) {
+      setLoadingComplaints(true);
+      ApiClient.getMyComplaints({ limit: 100 })
+        .then((complaints) => {
+          if (!cancelled) {
+            setMyComplaints(Array.isArray(complaints) ? complaints : []);
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to load user complaints:', err.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingComplaints(false);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -48,16 +71,15 @@ export default function Profile() {
     }
   };
 
-  // Compute actual user complaint statistics
-  const userComplaints = allComplaints.filter(
-    (c) => c.userId === currentUser?.id || (currentUser?.email && c.reportedBy?.email === currentUser.email)
-  );
+  const isResolved = (st) => ['RESOLVED', 'CLOSED', 'resolved', 'closed'].includes(st);
+  const isInProgress = (st) => ['IN_PROGRESS', 'ASSIGNED', 'in_progress', 'assigned'].includes(st);
+  const isOpen = (st) => ['REPORTED', 'OPEN', 'PENDING', 'VERIFIED', 'reported', 'open', 'pending', 'verified'].includes(st);
 
   const stats = {
-    total: userComplaints.length,
-    resolved: userComplaints.filter((c) => c.status === 'resolved' || c.status === 'verified').length,
-    inProgress: userComplaints.filter((c) => c.status === 'in_progress' || c.status === 'assigned').length,
-    open: userComplaints.filter((c) => c.status === 'pending' || c.status === 'reported' || c.status === 'open').length,
+    total: myComplaints.length,
+    resolved: myComplaints.filter((c) => isResolved(c.status)).length,
+    inProgress: myComplaints.filter((c) => isInProgress(c.status)).length,
+    open: myComplaints.filter((c) => isOpen(c.status)).length,
   };
 
   if (!isAuthenticated || !currentUser?.email) {
@@ -158,6 +180,48 @@ export default function Profile() {
               <span className="text-secondary-700">Pincode: {currentUser.pincode}</span>
             </div>
           </div>
+        </div>
+      </Card>
+
+      {/* My Submitted Grievances List */}
+      <Card className="mb-4" padding={false}>
+        <div className="p-4 border-b border-secondary-100 flex items-center justify-between">
+          <h2 className="text-xs font-semibold text-secondary-500 uppercase tracking-wide">
+            My Submitted Grievances ({myComplaints.length})
+          </h2>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/report')} className="text-xs text-primary-600 font-bold">
+            + File New Issue
+          </Button>
+        </div>
+        <div className="divide-y divide-secondary-100">
+          {loadingComplaints ? (
+            <div className="p-6 text-center text-xs text-secondary-400">Loading your complaints...</div>
+          ) : myComplaints.length === 0 ? (
+            <div className="p-6 text-center text-xs text-secondary-400">
+              You haven't reported any civic complaints yet.
+            </div>
+          ) : (
+            myComplaints.map((c) => (
+              <div
+                key={c.id || c._id}
+                onClick={() => navigate(`/complaint/${c.id || c._id}`)}
+                className="p-3.5 hover:bg-secondary-50 transition-colors cursor-pointer flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <StatusBadge status={c.status} />
+                    <span className="text-[11px] font-mono font-bold text-secondary-500">📍 {c.pincode}</span>
+                  </div>
+                  <p className="text-xs font-bold text-secondary-800 truncate">{c.title}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <span className="text-[10px] text-secondary-400">
+                    {c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : ''}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
 

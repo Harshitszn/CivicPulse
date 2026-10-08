@@ -1,40 +1,72 @@
-import React, { useState } from 'react';
-import { Search, MapPin, FileText, CheckCircle2, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, MapPin, FileText, CheckCircle2, Clock, Loader2, RefreshCw } from 'lucide-react';
 import Input from '../../components/ui/Input';
+import Button from '../../components/ui/Button';
 import { StatusBadge } from '../../components/ui/Badge';
-
-const CITIZENS = [
-  { _id: 'u1', name: 'Priya Sharma',   email: 'priya@example.com',  pincode: '560001', ward: 'Ward 47', total: 4, resolved: 1, joinedAt: '2024-01-15' },
-  { _id: 'u2', name: 'Rajesh Kumar',   email: 'rajesh@example.com', pincode: '110014', ward: 'Ward 12', total: 7, resolved: 5, joinedAt: '2024-02-08' },
-  { _id: 'u3', name: 'Meena R.',       email: 'meena@example.com',  pincode: '560002', ward: 'Ward 8',  total: 2, resolved: 2, joinedAt: '2024-03-22' },
-  { _id: 'u4', name: 'Arun V.',        email: 'arun@example.com',   pincode: '560003', ward: 'Ward 23', total: 5, resolved: 3, joinedAt: '2023-11-01' },
-  { _id: 'u5', name: 'Sunitha M.',     email: 'sunitha@example.com',pincode: '560004', ward: 'Ward 31', total: 3, resolved: 2, joinedAt: '2024-04-17' },
-  { _id: 'u6', name: 'Vikram P.',      email: 'vikram@example.com', pincode: '560001', ward: 'Ward 47', total: 9, resolved: 8, joinedAt: '2023-09-30' },
-  { _id: 'u7', name: 'Deepa N.',       email: 'deepa@example.com',  pincode: '560005', ward: 'Ward 15', total: 1, resolved: 0, joinedAt: '2024-07-01' },
-];
+import ApiClient from '../../services/api';
 
 export default function Citizens() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [citizens, setCitizens] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filtered = CITIZENS.filter((c) =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()) || c.pincode.includes(search)
-  );
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchCitizens = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await ApiClient.getAdminCitizens({ search: debouncedSearch.trim() || undefined });
+      setCitizens(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to load registered citizens:', err);
+      setError(err.message || 'Failed to retrieve citizens');
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    fetchCitizens();
+  }, [fetchCitizens]);
+
+  const filtered = citizens;
 
   return (
     <div className="animate-fade-in space-y-5 w-full">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-secondary-900">Citizens</h2>
-          <p className="text-sm text-secondary-400">{filtered.length} registered users</p>
+          <h2 className="text-xl font-bold text-secondary-900">Citizens Directory</h2>
+          <p className="text-sm text-secondary-400">
+            {loading ? 'Querying database...' : `${filtered.length} registered citizen accounts in PostgreSQL`}
+          </p>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={RefreshCw}
+          onClick={fetchCitizens}
+          loading={loading}
+          className="text-xs font-bold text-secondary-600"
+        >
+          Refresh
+        </Button>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Total Registered', value: CITIZENS.length, icon: '👥', color: 'bg-primary-50 text-primary-600' },
-          { label: 'Active Reporters',  value: CITIZENS.filter(c => c.total > 0).length, icon: '📋', color: 'bg-green-50 text-success' },
-          { label: 'High Engagement',   value: CITIZENS.filter(c => c.total >= 5).length, icon: '⭐', color: 'bg-yellow-50 text-warning' },
+          { label: 'Total Registered', value: citizens.length, icon: '👥', color: 'bg-primary-50 text-primary-600' },
+          { label: 'Active Reporters',  value: citizens.filter(c => c.total > 0).length, icon: '📋', color: 'bg-green-50 text-success' },
+          { label: 'High Engagement',   value: citizens.filter(c => c.total >= 5).length, icon: '⭐', color: 'bg-yellow-50 text-warning' },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-secondary-200 rounded-lg shadow-card p-4 flex items-center gap-3">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${s.color}`}>{s.icon}</div>
@@ -48,7 +80,7 @@ export default function Citizens() {
 
       {/* Search */}
       <Input
-        placeholder="Search by name, email, or pincode..."
+        placeholder="Search registered citizens by name, email, or pincode..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         icon={Search}

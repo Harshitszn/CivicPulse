@@ -48,7 +48,7 @@ class ComplaintService {
     const finalCategory = category || aiTriage.category;
     const finalPriority = priority || aiTriage.priority;
     const finalDept = assigned_department || aiTriage.department;
-    const finalEstRes = estimated_resolution_time || aiTriage.estimated_resolution_time || '2–4 Days';
+    const finalEstRes = estimated_resolution_time || aiTriage.estimated_resolution_time || null;
     const finalRequirement = requirement && requirement.trim() ? requirement.trim() : aiTriage.requirement;
     const aiConfidence = aiTriage.confidence;
     const aiUrgency = aiTriage.urgencyScore;

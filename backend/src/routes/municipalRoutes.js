@@ -24,6 +24,9 @@ router.patch('/complaints/:id/status', isAdmin, mc.updateAdminComplaintStatus);
 // Analytics (charts for the Analytics page)
 router.get('/analytics', isAdmin, mc.getAnalytics);
 
+// Registered citizens with complaint counts
+router.get('/citizens', isAdmin, mc.getCitizens);
+
 // Legacy endpoints kept for backward compat
 router.get('/stats', mc.getDashboardStats);
 router.get('/wards', mc.getWards);

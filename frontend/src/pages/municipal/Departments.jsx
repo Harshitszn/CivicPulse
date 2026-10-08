@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2, Users, CheckCircle2, Clock, AlertTriangle, Flame,
@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { StatusBadge, CategoryBadge, PriorityBadge } from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
-import { usePincode } from '../../context/PincodeContext';
+import ApiClient from '../../services/api';
 
 const MUNICIPAL_DEPARTMENTS = [
   {
@@ -14,14 +14,14 @@ const MUNICIPAL_DEPARTMENTS = [
     name: 'Public Works Department',
     icon: '🛣️',
     description: 'Road resurfacing, pothole repairs, footpaths & civil public infrastructure',
-    matchKeys: ['public works department', 'roads', 'infrastructure', 'infra'],
+    matchKeys: ['public works department', 'roads', 'infrastructure', 'infra', 'pothole'],
   },
   {
     id: 'sanitation',
     name: 'Sanitation Department',
     icon: '🗑️',
     description: 'Solid waste management, garbage dump clearing & street sanitation',
-    matchKeys: ['sanitation', 'garbage', 'solid waste'],
+    matchKeys: ['sanitation', 'garbage', 'solid waste', 'waste'],
   },
   {
     id: 'water',
@@ -35,7 +35,7 @@ const MUNICIPAL_DEPARTMENTS = [
     name: 'Drainage Department',
     icon: '🏞️',
     description: 'Stormwater drains, sewer overflow clearing & manhole safety',
-    matchKeys: ['drainage', 'stormwater', 'sewage'],
+    matchKeys: ['drainage', 'stormwater', 'sewage', 'drain'],
   },
   {
     id: 'electrical',
@@ -47,34 +47,65 @@ const MUNICIPAL_DEPARTMENTS = [
 ];
 
 export default function Departments() {
-  const { allComplaints, getComplaintVotes } = usePincode();
+  const [complaints, setComplaints] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDeptId, setSelectedDeptId] = useState('pwd');
 
-  // Dynamic calculations derived strictly from shared complaint data
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        // Try admin complaints first; fallback to public complaints list
+        let data;
+        try {
+          data = await ApiClient.getAdminComplaints({ limit: 500 });
+        } catch {
+          data = await ApiClient.getComplaints({ limit: 500 });
+        }
+        if (!cancelled && Array.isArray(data)) {
+          setComplaints(data);
+        }
+      } catch (err) {
+        console.warn('Could not load department complaints:', err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Dynamic calculations derived strictly from real database complaints
   const deptStats = useMemo(() => {
     return MUNICIPAL_DEPARTMENTS.map((dept) => {
-      const deptComplaints = allComplaints.filter((c) => {
-        const dName = (c.department || '').toLowerCase();
+      const deptComplaints = complaints.filter((c) => {
+        const dName = (c.assigned_department || c.department || '').toLowerCase();
         const cCat = (c.category || '').toLowerCase();
         const cSlug = (c.categorySlug || '').toLowerCase();
         return dept.matchKeys.some((k) => dName.includes(k) || cCat.includes(k) || cSlug.includes(k));
       });
 
-      const openCount = deptComplaints.filter(
-        (c) => c.status === 'open' || c.status === 'reported' || c.status === 'verified'
-      ).length;
+      const openCount = deptComplaints.filter((c) => {
+        const st = (c.status || '').toUpperCase();
+        return ['REPORTED', 'OPEN', 'VERIFIED'].includes(st);
+      }).length;
 
-      const highPriorityCount = deptComplaints.filter(
-        (c) => (c.priority || '').toLowerCase() === 'high' || (c.priority || '').toLowerCase() === 'urgent'
-      ).length;
+      const highPriorityCount = deptComplaints.filter((c) => {
+        const p = (c.priority || '').toLowerCase();
+        return p === 'high' || p === 'urgent';
+      }).length;
 
-      const inProgressCount = deptComplaints.filter(
-        (c) => c.status === 'in_progress' || c.status === 'assigned'
-      ).length;
+      const inProgressCount = deptComplaints.filter((c) => {
+        const st = (c.status || '').toUpperCase();
+        return ['IN_PROGRESS', 'ASSIGNED'].includes(st);
+      }).length;
 
-      const resolvedCount = deptComplaints.filter(
-        (c) => c.status === 'resolved' || c.status === 'closed'
-      ).length;
+      const resolvedCount = deptComplaints.filter((c) => {
+        const st = (c.status || '').toUpperCase();
+        return ['RESOLVED', 'CLOSED'].includes(st);
+      }).length;
 
       const totalCount = deptComplaints.length;
 
@@ -88,7 +119,7 @@ export default function Departments() {
         totalCount,
       };
     });
-  }, [allComplaints]);
+  }, [complaints]);
 
   // Currently active selected department for details table view
   const activeDept = useMemo(() => {
@@ -112,7 +143,7 @@ export default function Departments() {
         </div>
 
         <div className="text-xs font-bold text-secondary-600 bg-secondary-50 px-3 py-1.5 rounded-lg border border-secondary-200">
-          Total Shared Dataset: {allComplaints.length} Complaints
+          Total Assigned Dataset: {loading ? 'Loading...' : `${complaints.length} Complaints`}
         </div>
       </div>
 
@@ -230,7 +261,13 @@ export default function Departments() {
               </tr>
             </thead>
             <tbody>
-              {activeDept.complaints.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-secondary-500 font-medium">
+                    Loading department grievances...
+                  </td>
+                </tr>
+              ) : activeDept.complaints.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-secondary-500 font-medium">
                     No complaints currently assigned to this department.
@@ -238,16 +275,19 @@ export default function Departments() {
                 </tr>
               ) : (
                 activeDept.complaints.map((c) => {
-                  const votes = getComplaintVotes(c._id, c.upvotes, c.downvotes);
+                  const compId = c.id || c._id;
+                  const up = Number(c.upvotes_count ?? c.upvotes ?? 0);
+                  const down = Number(c.downvotes_count ?? c.downvotes ?? 0);
+                  const netScore = up - down;
                   return (
                     <tr
-                      key={c._id}
+                      key={compId}
                       className="border-b border-secondary-100 last:border-0 hover:bg-secondary-50 transition-colors"
                     >
-                      <td className="px-3 py-3 font-extrabold text-primary-700">#{c._id}</td>
+                      <td className="px-3 py-3 font-extrabold text-primary-700">#{compId}</td>
                       <td className="px-4 py-3">
                         <Link
-                          to={`/municipal/complaints/${c._id}`}
+                          to={`/municipal/complaints/${compId}`}
                           className="text-secondary-900 font-bold hover:text-primary-600 no-underline line-clamp-1 max-w-sm block"
                         >
                           {c.title}
@@ -258,12 +298,12 @@ export default function Departments() {
                       <td className="px-3 py-3"><PriorityBadge priority={c.priority} /></td>
                       <td className="px-3 py-3 font-mono font-bold text-secondary-600">📍 {c.pincode}</td>
                       <td className="px-3 py-3 text-center font-extrabold">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] ${votes.netScore > 0 ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-secondary-100 text-secondary-600'}`}>
-                          {votes.netScore > 0 ? `+${votes.netScore}` : votes.netScore}
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] ${netScore > 0 ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-secondary-100 text-secondary-600'}`}>
+                          {netScore > 0 ? `+${netScore}` : netScore}
                         </span>
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Link to={`/municipal/complaints/${c._id}`}>
+                        <Link to={`/municipal/complaints/${compId}`}>
                           <Button variant="primary" size="sm" className="font-bold text-[11px] py-1 px-2.5">
                             Open Complaint <ArrowRight size={12} className="ml-1" />
                           </Button>

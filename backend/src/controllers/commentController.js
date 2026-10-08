@@ -18,7 +18,7 @@ const getComments = async (req, res, next) => {
 const addComment = async (req, res, next) => {
   try {
     const { complaintId } = req.params;
-    const { content } = req.body;
+    const { content, is_anonymous } = req.body;
 
     if (!content || !content.trim()) {
       throw ApiError.badRequest('Comment content cannot be empty');
@@ -30,6 +30,7 @@ const addComment = async (req, res, next) => {
       complaint_id: complaintId,
       content: content.trim(),
       is_official,
+      is_anonymous: Boolean(is_anonymous),
     });
 
     return ApiResponse.created(res, comment, 'Comment added');

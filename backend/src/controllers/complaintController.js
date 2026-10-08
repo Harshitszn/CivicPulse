@@ -58,7 +58,7 @@ const createComplaint = async (req, res, next) => {
       image_ids: req.body.image_ids || null,
       user_id: authenticatedUserId,
       assigned_department,
-      estimated_resolution_time: estimated_resolution_time || estimatedResolutionTime || estimatedResolution || '2–4 Days',
+      estimated_resolution_time: estimated_resolution_time || estimatedResolutionTime || estimatedResolution || null,
     });
 
     return ApiResponse.created(res, { complaint }, 'Complaint registered successfully');

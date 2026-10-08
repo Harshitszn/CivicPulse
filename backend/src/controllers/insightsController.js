@@ -36,6 +36,15 @@ const getServices = async (req, res, next) => {
   }
 };
 
+const getAreas = async (req, res, next) => {
+  try {
+    const areas = await AnalyticsService.getAreas();
+    return ApiResponse.ok(res, areas, 'Municipal areas retrieved');
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getAllInsights = async (req, res, next) => {
   try {
     const { pincode } = req.query;
@@ -54,5 +63,6 @@ module.exports = {
   getOverview,
   getCivicRecord,
   getServices,
+  getAreas,
   getAllInsights,
 };

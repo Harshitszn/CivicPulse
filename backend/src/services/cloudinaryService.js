@@ -9,11 +9,7 @@ const logger = require('../utils/logger');
 class CloudinaryService {
   static async uploadBuffer(buffer, folder = 'civicpulse/complaints') {
     if (!config.cloudinary.cloudName || config.cloudinary.cloudName === 'your_cloud_name') {
-      logger.warn('Cloudinary not configured. Returning mock image URL.');
-      return {
-        url: 'https://images.unsplash.com/photo-1584467735815-f778f274e296?auto=format&fit=crop&w=800&q=80',
-        public_id: 'mock_image_id',
-      };
+      throw new Error('Cloudinary is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.');
     }
 
     return new Promise((resolve, reject) => {
