@@ -209,6 +209,27 @@ class ApiClient {
     return complaints;
   }
 
+  // Resolution verification endpoints
+  static async getVerificationStatus(complaintId) {
+    const res = await ApiClient.request(`/complaints/${complaintId}/verification`);
+    return res.data;
+  }
+
+  static async submitVerification(complaintId, result, remarks = null) {
+    const res = await ApiClient.request(`/complaints/${complaintId}/verification`, {
+      method: 'POST',
+      body: JSON.stringify({ result, remarks }),
+    });
+    return res.data;
+  }
+
+  static async withdrawVerification(complaintId) {
+    const res = await ApiClient.request(`/complaints/${complaintId}/verification`, {
+      method: 'DELETE',
+    });
+    return res.data;
+  }
+
   // AI endpoints
   static async classifyComplaint(data) {
     const res = await ApiClient.request('/ai/classify', {

@@ -366,7 +366,13 @@ export default function ComplaintDetail() {
       <StatusTimeline currentStatus={complaint.status} className="mb-5" />
 
       {/* Citizen Verification Card */}
-      <CitizenVerificationCard complaintId={complaint.id || complaint._id} status={complaint.status} className="mb-5" />
+      <CitizenVerificationCard
+        complaintId={complaint.id || complaint._id}
+        complaintPincode={complaint.pincode}
+        status={complaint.status}
+        className="mb-5"
+      />
+
 
       {/* Status Change History (Collapsible) */}
       {statusHistory.length > 0 && (
